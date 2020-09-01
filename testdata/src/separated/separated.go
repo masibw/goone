@@ -21,7 +21,7 @@ type Job struct {
 func getJob(person Person) Job{
 	var job Job
 	// This is N+1 Query
-	err  := cnn.QueryRow("SELECT job_id, name FROM Job WHERE job_id = ?",person.JobID).Scan(&job.JobID,&job.Name)// want "this query might be causes bad performance"
+	err  := cnn.QueryRow("SELECT job_id, name FROM Job WHERE job_id = ?",person.JobID).Scan(&job.JobID,&job.Name)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func main(){
 		if err := rows.Scan(&person.Name,&person.JobID); err != nil {
 			log.Fatal(err)
 		}
-		job:=getJob(person)
+		job:=getJob(person)// want "this query might be causes bad performance"
 		fmt.Println(person.Name,job.Name)
 	}
 
