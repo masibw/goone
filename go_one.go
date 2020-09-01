@@ -19,45 +19,32 @@ var Analyzer = &analysis.Analyzer{
 	},
 }
 
+func helper(pass *analysis.Pass, node ast.Node){
+
+}
+
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
-	nodeFilter := []ast.Node{
+	forFilter := []ast.Node{
 		(*ast.ForStmt)(nil),
 	}
 
-	inspect.Preorder(nodeFilter, func(n ast.Node) {
+	inspect.Preorder(forFilter, func(n ast.Node) {
 				switch n:=n.(type){
 				case *ast.ForStmt:
-
-					for _, stmt := range n.Body.List{
-						switch stmt := stmt.(type){
-						case *ast.AssignStmt:
-						for _,expr := range stmt.Rhs{
-							switch expr := expr.(type){
-							case *ast.CallExpr:
-								switch fun:=expr.Fun.(type){
-								case *ast.SelectorExpr:
-									//ast.Print(nil,fun)
-									switch x:=fun.X.(type) {
-									case *ast.CallExpr:
-										switch fun := x.Fun.(type) {
-										case *ast.SelectorExpr:
-											switch x := fun.X.(type) {
-											case *ast.Ident:
-												if tv, ok := pass.TypesInfo.Types[x]; ok {
-													if tv.Type.String() == "*database/sql.DB" {
-														pass.Reportf(fun.Pos(), "this query might be causes bad performance")
-													}
-												}
-											}
-										}
-									}
+					ast.Inspect(n,func(n ast.Node) bool{
+						switch node := n.(type){
+						case *ast.Ident:
+							if tv, ok := pass.TypesInfo.Types[node]; ok {
+								if tv.Type.String() == "*database/sql.DB" {
+									pass.Reportf(node.Pos(), "this query might be causes bad performance")
+									return false
 								}
 							}
 						}
-						}
-					}
+						return true
+					})
 				}
 
 	})
