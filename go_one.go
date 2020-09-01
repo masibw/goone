@@ -11,7 +11,7 @@ import (
 	"log"
 )
 
-const doc = "go_one is ..."
+const doc = "go_one finds N+1 query "
 
 // Analyzer is ...
 var Analyzer = &analysis.Analyzer{
@@ -30,12 +30,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		(*ast.ForStmt)(nil),
 	}
 
-	//info := types.Info{
-	//	Types: make(map[ast.Expr]types.TypeAndValue),
-	//	Defs:  make(map[*ast.Ident]types.Object),
-	//	Uses:  make(map[*ast.Ident]types.Object),
-	//}
-
 	inspect.Preorder(forFilter, func(n ast.Node) {
 		switch n := n.(type) {
 		case *ast.ForStmt:
@@ -50,10 +44,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 						}
 					}
 				case *ast.CallExpr:
-					switch funcExpr := node.Fun.(type){
+					switch funcExpr := node.Fun.(type) {
 					case *ast.Ident:
 						//ast.Print(nil,funcExpr.Obj)
 						obj := funcExpr.Obj
+						if obj == nil {
+							return false
+						}
 						switch decl := obj.Decl.(type) {
 						case *ast.FuncDecl:
 							ast.Inspect(decl, func(n ast.Node) bool {
@@ -74,12 +71,10 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 					}
 
-
 				}
 				return true
 
 			})
-
 
 		}
 
