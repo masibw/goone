@@ -1,5 +1,5 @@
-# go-one
-go-one finds N+1 query in go 
+# go_one
+go_one finds N+1 query in go 
 
 Example
 ```
