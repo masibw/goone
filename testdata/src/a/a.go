@@ -33,7 +33,8 @@ func main(){
 
 		var job Job
 		// This is N+1 Query
-		if err := cnn.QueryRow("SELECT job_id, name FROM Job WHERE job_id = ?",person.JobID).Scan(&job.JobID,&job.Name); err != nil { //want "N+1 query"
+		err  := cnn.QueryRow("SELECT job_id, name FROM Job WHERE job_id = ?",person.JobID).Scan(&job.JobID,&job.Name)//want "this query might be causes bad performance"
+		if err != nil {
 			log.Fatal(err)
 		}
 		fmt.Println(person.Name,job.Name)

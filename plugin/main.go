@@ -24,13 +24,13 @@ type analyzerPlugin struct{}
 
 func (analyzerPlugin) GetAnalyzers() []*analysis.Analyzer {
 	if flags != "" {
-		flagset := go-one.Analyzer.Flags
+		flagset := go_one.Analyzer.Flags
 		if err := flagset.Parse(strings.Split(flags, " ")); err != nil {
 			panic("cannot parse flags of go-one: " + err.Error())
 		}
 	}
 	return []*analysis.Analyzer{
-		go-one.Analyzer,
+		go_one.Analyzer,
 	}
 }
 
