@@ -28,11 +28,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	forFilter := []ast.Node{
 		(*ast.ForStmt)(nil),
+		(*ast.RangeStmt)(nil),
 	}
 
 	inspect.Preorder(forFilter, func(n ast.Node) {
 		switch n := n.(type) {
-		case *ast.ForStmt:
+		case *ast.ForStmt, *ast.RangeStmt:
 			ast.Inspect(n, func(n ast.Node) bool {
 				switch node := n.(type) {
 				case *ast.Ident:
