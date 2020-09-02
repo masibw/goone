@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 
@@ -24,9 +25,9 @@ type Job struct {
 
 func main(){
 
-	cnn, err := sql.Open("mysql", "user:password@tcp(host:port)/dbname")
+	cnn, _ := sql.Open("mysql", "user:password@tcp(host:port)/dbname")
 
-	rows, err := cnn.Query("SELECT name, job_id FROM person")
+	rows, _ := cnn.Query("SELECT name, job_id FROM persons")
 
 	defer rows.Close()
 
@@ -39,7 +40,7 @@ func main(){
 		var job Job
 
         // This is N+1 query
-		if err := cnn.QueryRow("SELECT job_id, name FROM Job WHERE job_id = ?",person.JobID).Scan(&job.JobID,&job.Name); err != nil { //want "N+1 query"
+		if err := cnn.QueryRow("SELECT job_id, name FROM Jobs WHERE job_id = ?",person.JobID).Scan(&job.JobID,&job.Name); err != nil { //want "N+1 query"
 			log.Fatal(err)
 		}
 		fmt.Println(person.Name,job.Name)
