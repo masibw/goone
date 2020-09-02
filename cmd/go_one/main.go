@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/masibw/go-one"
+	"github.com/masibw/go_one"
 	"golang.org/x/tools/go/analysis/unitchecker"
 )
 
