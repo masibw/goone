@@ -60,6 +60,7 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 			switch funcExpr := node.Fun.(type) {
 			case *ast.Ident:
 				obj := funcExpr.Obj
+				//if function does not exist in same file
 				if obj == nil {
 					if anotherFileNode := pass.TypesInfo.ObjectOf(funcExpr); anotherFileNode != nil {
 						file := analysisutil.File(pass, anotherFileNode.Pos())
@@ -75,6 +76,7 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 
 					return false
 				}
+				//if function exists in same file
 				switch decl := obj.Decl.(type) {
 				case *ast.FuncDecl:
 					findQuery(pass, decl, node)

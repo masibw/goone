@@ -9,5 +9,5 @@ import (
 // TestAnalyzer is base test for Analyzer.
 func TestAnalyzer(t *testing.T) {
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, go_one.Analyzer, "base", "separated")
+	analysistest.Run(t, testdata, go_one.Analyzer, "base", "separated","another_package")
 }

@@ -42,7 +42,7 @@ func main() {
 			log.Fatal(err)
 		}
 		job := getJob(person) // want "this query might be causes bad performance"
-		job = getJob2(person) // want "this query might be causes bad performance"
+		job = GetJob2(person) // want "this query might be causes bad performance"
 		fmt.Println(person.Name, job.Name)
 	}
 
