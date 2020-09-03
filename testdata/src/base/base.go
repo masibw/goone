@@ -16,7 +16,7 @@ type Job struct {
 	Name  string
 }
 
-func main() {
+func ForStmt() {
 
 	cnn, _ := sql.Open("mysql", "user:password@tcp(host:port)/dbname")
 
