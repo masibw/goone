@@ -34,13 +34,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	inspect.Preorder(forFilter, func(n ast.Node) {
-		//s := pass.Pkg.Scope()
-		//for _, name:=range s.Names(){
-		//	obj := s.Lookup(name)
-		//	objs :=pass.TypesInfo.Defs[obj]
-		//	fmt.Println(obj.Name(),	obj.Type().Underlying())
-		//}
-
 		switch n := n.(type) {
 		case *ast.ForStmt, *ast.RangeStmt:
 			ast.Inspect(n, func(n ast.Node) bool {
@@ -56,12 +49,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				case *ast.CallExpr:
 					switch funcExpr := node.Fun.(type) {
 					case *ast.Ident:
-						//fmt.Println(funcExpr.Name)
 						obj := funcExpr.Obj
 						if obj == nil {
-							//if anotherFileNode := analysisutil.TypeOf(pass,funcExpr.Name); anotherFileNode != nil {
-							//
-							//}
 							if anotherFileNode := pass.TypesInfo.ObjectOf(funcExpr); anotherFileNode != nil {
 								file := analysisutil.File(pass, anotherFileNode.Pos())
 								if file == nil {
@@ -86,8 +75,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 										})
 									}
 								}
-
-								//fmt.Println("anotherFileNode",anotherFileNode.Name())
 							}
 
 							return false
