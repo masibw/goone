@@ -6,18 +6,17 @@ import (
 	"log"
 )
 
-
 type Person struct {
-	Name string
+	Name  string
 	JobID int
 }
 
 type Job struct {
 	JobID int
-	Name string
+	Name  string
 }
 
-func main(){
+func main() {
 
 	cnn, _ := sql.Open("mysql", "user:password@tcp(host:port)/dbname")
 
@@ -27,23 +26,23 @@ func main(){
 
 	for rows.Next() {
 		var person Person
-		if err := rows.Scan(&person.Name,&person.JobID); err != nil {
+		if err := rows.Scan(&person.Name, &person.JobID); err != nil {
 			log.Fatal(err)
 		}
 
 		var job Job
 		// This is N+1 Query
-		err  := cnn.QueryRow("SELECT job_id, name FROM Jobs WHERE job_id = ?",person.JobID).Scan(&job.JobID,&job.Name)//want "this query might be causes bad performance"
+		err := cnn.QueryRow("SELECT job_id, name FROM Jobs WHERE job_id = ?", person.JobID).Scan(&job.JobID, &job.Name) //want "this query might be causes bad performance"
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		fmt.Println(person.Name,job.Name)
+		fmt.Println(person.Name, job.Name)
 	}
 
 }
 
-func rangeStmt(){
+func rangeStmt() {
 
 	cnn, _ := sql.Open("mysql", "user:password@tcp(host:port)/dbname")
 
@@ -53,26 +52,24 @@ func rangeStmt(){
 
 	defer rows.Close()
 
-	for rows.Next(){
+	for rows.Next() {
 		var person Person
-		if err := rows.Scan(&person.Name,&person.JobID); err != nil {
+		if err := rows.Scan(&person.Name, &person.JobID); err != nil {
 			log.Fatal(err)
 		}
-		persons = append(persons,person)
+		persons = append(persons, person)
 	}
 
-
-	for _, person := range persons{
+	for _, person := range persons {
 
 		var job Job
 		// This is N+1 Query
-		err  := cnn.QueryRow("SELECT job_id, name FROM Jobs WHERE job_id = ?",person.JobID).Scan(&job.JobID,&job.Name)//want "this query might be causes bad performance"
+		err := cnn.QueryRow("SELECT job_id, name FROM Jobs WHERE job_id = ?", person.JobID).Scan(&job.JobID, &job.Name) //want "this query might be causes bad performance"
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		fmt.Println(person.Name,job.Name)
+		fmt.Println(person.Name, job.Name)
 	}
 
 }
-
