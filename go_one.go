@@ -18,10 +18,15 @@ var Analyzer = &analysis.Analyzer{
 	Name: "go_one",
 	Doc:  doc,
 	Run:  run,
+	FactTypes: []analysis.Fact{new(isWrapper)},
 	Requires: []*analysis.Analyzer{
 		inspect.Analyzer,
 	},
 }
+
+type isWrapper struct {}
+
+func (f *isWrapper) AFact() {}
 
 func run(pass *analysis.Pass) (interface{}, error) {
 
@@ -87,6 +92,7 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 					findQuery(pass, decl, node)
 				}
 
+			//another package function
 			case *ast.SelectorExpr:
 					obj := funcExpr.Sel.Obj
 					if obj == nil {
@@ -97,6 +103,7 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 								if anotherFileFunc == nil {
 									continue
 								}
+
 								//fmt.Println(anotherFileFunc.Pos())
 								//PosはあるがNilになる(pass.Filesの中に該当ファイルがないのが問題ぽい)
 								file := analysisutil.File(pass, anotherFileFunc.Pos())
