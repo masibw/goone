@@ -3,7 +3,10 @@ package another_package
 import (
 	"database/sql"
 	"fmt"
-	"github.com/masibw/go_one/testdata/src/separated"
+
+	//import testdata/src/separated
+	"separated"
+
 	"log"
 )
 
