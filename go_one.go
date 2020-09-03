@@ -7,7 +7,6 @@ import (
 	"go/types"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
-	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/ast/inspector"
 )
 
@@ -67,11 +66,14 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 						if file == nil {
 							return false
 						}
-						if path, ok := astutil.PathEnclosingInterval(file, anotherFileNode.Pos(), anotherFileNode.Pos()); ok {
-							if funcDecl, ok := path[1].(*ast.FuncDecl); ok {
-								findQuery(pass, funcDecl, node)
-							}
-						}
+						inspect := inspector.New([]*ast.File{file})
+						types := []ast.Node{new(ast.FuncDecl)}
+						inspect.WithStack(types, func(n ast.Node, push bool, stack []ast.Node) bool {
+							if !push { return false }
+							findQuery(pass,n,node)
+							return true
+						})
+
 					}
 
 					return false
