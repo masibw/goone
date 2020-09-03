@@ -2,11 +2,13 @@ package go_one
 
 import (
 	_ "database/sql"
+	"fmt"
 	"github.com/gostaticanalysis/analysisutil"
 	"go/ast"
 	"go/types"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
+	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/ast/inspector"
 	"log"
 )
@@ -47,9 +49,34 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				case *ast.CallExpr:
 					switch funcExpr := node.Fun.(type) {
 					case *ast.Ident:
-						//ast.Print(nil,funcExpr.Obj)
 						obj := funcExpr.Obj
 						if obj == nil {
+							if anotherFileNode := pass.TypesInfo.ObjectOf(funcExpr); anotherFileNode != nil {
+								file := analysisutil.File(pass, anotherFileNode.Pos())
+								if file == nil {
+									return false
+								}
+								if path, ok := astutil.PathEnclosingInterval(file, anotherFileNode.Pos(), anotherFileNode.Pos()); ok {
+									if funcDecl, ok := path[1].(*ast.FuncDecl); ok {
+										fmt.Println("funcName", funcDecl.Name)
+										ast.Inspect(funcDecl, func(n ast.Node) bool {
+											switch ident := n.(type) {
+											case *ast.Ident:
+												if tv, ok := pass.TypesInfo.Types[ident]; ok {
+													obj := analysisutil.TypeOf(pass, "database/sql", "*DB")
+													if types.Identical(tv.Type, obj) {
+														pass.Reportf(node.Pos(), "this query might be causes bad performance")
+														log.Printf("%s is detected %d ", ident.Name, ident.NamePos)
+													}
+												}
+
+											}
+											return true
+										})
+									}
+								}
+							}
+
 							return false
 						}
 						switch decl := obj.Decl.(type) {
