@@ -99,7 +99,7 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 				}
 				for _, typ := range sqlTypes {
 					if types.Identical(tv.Type, typ) {
-						pass.Reportf(reportNode.Pos(), "this query called in loop")
+						pass.Reportf(reportNode.Pos(), "this query is called in a loop")
 						break
 					}
 				}

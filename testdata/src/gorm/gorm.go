@@ -41,7 +41,7 @@ func main() {
 
 	for _, person := range persons {
 		var job Job
-		if err := db.First(&job, person.JobID).Error; err != nil {//want "this query called in loop"
+		if err := db.First(&job, person.JobID).Error; err != nil {//want "this query is called in a loop"
 			log.Fatal(err.Error())
 		}
 		fmt.Println(person.Name, job.Name)
