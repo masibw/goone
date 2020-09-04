@@ -2,6 +2,7 @@ package go_one
 
 import (
 	_ "database/sql"
+	"fmt"
 	"github.com/gostaticanalysis/analysisutil"
 	"go/ast"
 	"go/types"
@@ -21,12 +22,18 @@ var Analyzer = &analysis.Analyzer{
 		inspect.Analyzer,
 	},
 }
-var sqlType types.Type
+var sqlTypes []types.Type
+
+
+func prepareTypes(pass *analysis.Pass){
+	sqlTypes = append(sqlTypes,analysisutil.TypeOf(pass, "database/sql", "*DB"))
+	sqlTypes = append(sqlTypes,analysisutil.TypeOf(pass,"gorm.io/gorm","*DB"))
+}
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	sqlType = analysisutil.TypeOf(pass, "database/sql", "*DB")
-	if sqlType == nil {
+	prepareTypes(pass)
+	if sqlTypes == nil {
 		return nil, nil
 	}
 	forFilter := []ast.Node{
@@ -70,15 +77,18 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 		switch node := n.(type) {
 		case *ast.Ident:
 			if tv, ok := pass.TypesInfo.Types[node]; ok {
-
-				if types.Identical(tv.Type, sqlType) {
-
-					reportNode := parentNode
-					if reportNode == nil {
-						reportNode = node
-					}
-					pass.Reportf(reportNode.Pos(), "this query called in loop")
+				reportNode := parentNode
+				if reportNode == nil {
+					reportNode = node
 				}
+				for _,typ := range sqlTypes{
+					if types.Identical(tv.Type, typ) {
+						fmt.Println(reportNode.Pos())
+						pass.Reportf(reportNode.Pos(), "this query called in loop")
+						break
+					}
+				}
+
 			}
 		case *ast.CallExpr:
 			switch funcExpr := node.Fun.(type) {
