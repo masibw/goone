@@ -16,7 +16,7 @@ type Job struct {
 	Name  string
 }
 
-func main() {
+func ForStmt() {
 
 	cnn, _ := sql.Open("mysql", "user:password@tcp(host:port)/dbname")
 
@@ -32,7 +32,7 @@ func main() {
 
 		var job Job
 		// This is N+1 Query
-		err := cnn.QueryRow("SELECT job_id, name FROM Jobs WHERE job_id = ?", person.JobID).Scan(&job.JobID, &job.Name) //want "this query might be causes bad performance"
+		err := cnn.QueryRow("SELECT job_id, name FROM Jobs WHERE job_id = ?", person.JobID).Scan(&job.JobID, &job.Name)//want "this query called in loop"
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -64,7 +64,7 @@ func rangeStmt() {
 
 		var job Job
 		// This is N+1 Query
-		err := cnn.QueryRow("SELECT job_id, name FROM Jobs WHERE job_id = ?", person.JobID).Scan(&job.JobID, &job.Name) //want "this query might be causes bad performance"
+		err := cnn.QueryRow("SELECT job_id, name FROM Jobs WHERE job_id = ?", person.JobID).Scan(&job.JobID, &job.Name) //want "this query called in loop"
 		if err != nil {
 			log.Fatal(err)
 		}
