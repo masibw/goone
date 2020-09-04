@@ -23,24 +23,21 @@ var Analyzer = &analysis.Analyzer{
 }
 var sqlTypes []types.Type
 
-func appendTypes(pass *analysis.Pass, pkg, name string) types.Type {
-	return analysisutil.TypeOf(pass, pkg, name)
+func appendTypes(pass *analysis.Pass, pkg, name string) {
+	if typ := analysisutil.TypeOf(pass, pkg, name); typ != nil {
+		sqlTypes = append(sqlTypes, typ)
+	}
 }
 
 func prepareTypes(pass *analysis.Pass) {
-	var typ types.Type
-	if typ = appendTypes(pass, "database/sql", "*DB"); typ != nil {
-		sqlTypes = append(sqlTypes, typ)
-	}
-	if typ = appendTypes(pass, "gorm.io/gorm", "*DB"); typ != nil {
-		sqlTypes = append(sqlTypes, typ)
-	}
-	if typ = appendTypes(pass, "gopkg.in/gorp.v1", "*DbMap"); typ != nil {
-		sqlTypes = append(sqlTypes, typ)
-	}
-	if typ = appendTypes(pass, "github.com/jmoiron/sqlx", "*DB"); typ != nil {
-		sqlTypes = append(sqlTypes, typ)
-	}
+
+	appendTypes(pass, "database/sql", "*DB")
+	appendTypes(pass, "gorm.io/gorm", "*DB")
+	appendTypes(pass, "gopkg.in/gorp.v1", "*DbMap")
+	appendTypes(pass, "gopkg.in/gorp.v2", "*DbMap")
+	appendTypes(pass, "gopkg.in/gorp.v3", "*DbMap")
+	appendTypes(pass, "github.com/jmoiron/sqlx", "*DB")
+
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
