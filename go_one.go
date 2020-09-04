@@ -28,6 +28,8 @@ var sqlTypes []types.Type
 func prepareTypes(pass *analysis.Pass){
 	sqlTypes = append(sqlTypes,analysisutil.TypeOf(pass, "database/sql", "*DB"))
 	sqlTypes = append(sqlTypes,analysisutil.TypeOf(pass,"gorm.io/gorm","*DB"))
+	sqlTypes = append(sqlTypes,analysisutil.TypeOf(pass,"gopkg.in/gorp.v1","*DbMap"))
+	sqlTypes = append(sqlTypes,analysisutil.TypeOf(pass,"github.com/jmoiron/sqlx","*DB"))
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
