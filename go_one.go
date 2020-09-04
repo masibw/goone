@@ -35,7 +35,7 @@ func prepareTypes(pass *analysis.Pass) {
 	appendTypes(pass, "gorm.io/gorm", "*DB")
 	appendTypes(pass, "gopkg.in/gorp.v1", "*DbMap")
 	appendTypes(pass, "gopkg.in/gorp.v2", "*DbMap")
-	appendTypes(pass, "gopkg.in/gorp.v3", "*DbMap")
+	appendTypes(pass, "github.com/go-gorp/gorp/v3", "*DbMap")
 	appendTypes(pass, "github.com/jmoiron/sqlx", "*DB")
 
 }
