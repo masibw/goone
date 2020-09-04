@@ -21,10 +21,15 @@ var Analyzer = &analysis.Analyzer{
 		inspect.Analyzer,
 	},
 }
+var sqlType types.Type
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	sqlType = analysisutil.TypeOf(pass, "database/sql", "*DB")
 
+	if sqlType == nil {
+		return nil, nil
+	}
 	forFilter := []ast.Node{
 		(*ast.ForStmt)(nil),
 		(*ast.RangeStmt)(nil),
@@ -46,8 +51,9 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 		switch node := n.(type) {
 		case *ast.Ident:
 			if tv, ok := pass.TypesInfo.Types[node]; ok {
-				obj := analysisutil.TypeOf(pass, "database/sql", "*DB")
-				if types.Identical(tv.Type, obj) {
+
+				if types.Identical(tv.Type, sqlType) {
+
 					reportNode := parentNode
 					if reportNode == nil {
 						reportNode = node
