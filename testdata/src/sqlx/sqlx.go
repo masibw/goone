@@ -41,7 +41,7 @@ func forStmt() {
 
 }
 
-func main() {
+func rangeStmt() {
 	cnn, _ := sqlx.Connect("mysql", "user:password@tcp(host:port)/dbname")
 
 	rows, _ := cnn.Queryx("SELECT name, job_id FROM persons")
