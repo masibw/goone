@@ -8,6 +8,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
+	"log"
 )
 
 const doc = "go_one finds N+1 query "
@@ -26,8 +27,8 @@ var sqlType types.Type
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	sqlType = analysisutil.TypeOf(pass, "database/sql", "*DB")
-
 	if sqlType == nil {
+		log.Printf("%s does not import database/sql",pass.Pkg.Name())
 		return nil, nil
 	}
 	forFilter := []ast.Node{
@@ -49,6 +50,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 func anotherFileSearch(pass *analysis.Pass,funcExpr *ast.Ident,parentNode ast.Node) bool{
 	if anotherFileNode := pass.TypesInfo.ObjectOf(funcExpr); anotherFileNode != nil {
 		file := analysisutil.File(pass, anotherFileNode.Pos())
+
 		if file == nil {
 			return false
 		}
@@ -77,7 +79,7 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 					if reportNode == nil {
 						reportNode = node
 					}
-					pass.Reportf(reportNode.Pos(), "this query might be causes bad performance")
+					pass.Reportf(reportNode.Pos(), "this query called in loop")
 				}
 			}
 		case *ast.CallExpr:

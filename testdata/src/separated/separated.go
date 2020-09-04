@@ -41,8 +41,8 @@ func main() {
 		if err := rows.Scan(&person.Name, &person.JobID); err != nil {
 			log.Fatal(err)
 		}
-		job := getJob(person) // want "this query might be causes bad performance"
-		job = getJob2(person) // want "this query might be causes bad performance"
+		job := getJob(person) //want "this query called in loop"
+		job = getJob2(person) //want "this query called in loop"
 		fmt.Println(person.Name, job.Name)
 	}
 
