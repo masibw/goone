@@ -4,6 +4,7 @@ import (
 	_ "database/sql"
 	"github.com/gostaticanalysis/analysisutil"
 	"go/ast"
+	"go/token"
 	"go/types"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -11,6 +12,10 @@ import (
 )
 
 const doc = "go_one finds N+1 query "
+
+var funcMemo map[token.Pos]bool = make(map[token.Pos]bool)
+
+var searchMemo map[token.Pos]bool = make(map[token.Pos]bool)
 
 // Analyzer is ...
 var Analyzer = &analysis.Analyzer{
@@ -41,6 +46,7 @@ func prepareTypes(pass *analysis.Pass) {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
+
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	prepareTypes(pass)
 
@@ -76,6 +82,7 @@ func anotherFileSearch(pass *analysis.Pass, funcExpr *ast.Ident, parentNode ast.
 			if !push {
 				return false
 			}
+
 			findQuery(pass, n, parentNode)
 			return true
 		})
@@ -85,10 +92,21 @@ func anotherFileSearch(pass *analysis.Pass, funcExpr *ast.Ident, parentNode ast.
 	return false
 }
 
+
+
 func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
+
+	if cacheNode, exist := funcMemo[rootNode.Pos()]; exist{
+		if cacheNode {
+			pass.Reportf(parentNode.Pos(), "this query is called in a loop")
+		}
+		return
+	}
+
 	ast.Inspect(rootNode, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.Ident:
+
 			if tv, ok := pass.TypesInfo.Types[node]; ok {
 				reportNode := parentNode
 				if reportNode == nil {
@@ -97,7 +115,8 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 				for _, typ := range sqlTypes {
 					if types.Identical(tv.Type, typ) {
 						pass.Reportf(reportNode.Pos(), "this query is called in a loop")
-						break
+						funcMemo[rootNode.Pos()]=true
+						return false
 					}
 				}
 
@@ -111,7 +130,15 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 				}
 				switch decl := obj.Decl.(type) {
 				case *ast.FuncDecl:
-					findQuery(pass, decl, node)
+					if isSearched , ok := searchMemo[decl.Pos()]; !ok || !isSearched{
+						searchMemo[decl.Pos()]=true
+						findQuery(pass, decl, node)
+					}else{
+						if isQuery,  exist := funcMemo[decl.Pos()]; exist && isQuery{
+							pass.Reportf(node.Pos(), "this query is called in a loop")
+						}
+					}
+
 				}
 
 			}

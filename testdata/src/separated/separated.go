@@ -42,6 +42,7 @@ func main() {
 			log.Fatal(err)
 		}
 		job := getJob(person) //want "this query is called in a loop"
+		job = getJob(person) //want "this query is called in a loop"
 		job = getJob2(person) //want "this query is called in a loop"
 		fmt.Println(person.Name, job.Name)
 	}
