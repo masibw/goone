@@ -46,6 +46,25 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
+func anotherFileSearch(pass *analysis.Pass,funcExpr *ast.Ident,parentNode ast.Node) bool{
+	if anotherFileNode := pass.TypesInfo.ObjectOf(funcExpr); anotherFileNode != nil {
+		file := analysisutil.File(pass, anotherFileNode.Pos())
+		if file == nil {
+			return false
+		}
+		inspect := inspector.New([]*ast.File{file})
+		types := []ast.Node{new(ast.FuncDecl)}
+		inspect.WithStack(types, func(n ast.Node, push bool, stack []ast.Node) bool {
+			if !push { return false }
+			findQuery(pass,n,parentNode)
+			return true
+		})
+
+	}
+
+	return false
+}
+
 func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 	ast.Inspect(rootNode, func(n ast.Node) bool {
 		switch node := n.(type) {
@@ -66,22 +85,7 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 			case *ast.Ident:
 				obj := funcExpr.Obj
 				if obj == nil {
-					if anotherFileNode := pass.TypesInfo.ObjectOf(funcExpr); anotherFileNode != nil {
-						file := analysisutil.File(pass, anotherFileNode.Pos())
-						if file == nil {
-							return false
-						}
-						inspect := inspector.New([]*ast.File{file})
-						types := []ast.Node{new(ast.FuncDecl)}
-						inspect.WithStack(types, func(n ast.Node, push bool, stack []ast.Node) bool {
-							if !push { return false }
-							findQuery(pass,n,node)
-							return true
-						})
-
-					}
-
-					return false
+					return anotherFileSearch(pass,funcExpr,node)
 				}
 				switch decl := obj.Decl.(type) {
 				case *ast.FuncDecl:
