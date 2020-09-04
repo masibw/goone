@@ -8,7 +8,6 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
-	"log"
 )
 
 const doc = "go_one finds N+1 query "
@@ -28,7 +27,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	sqlType = analysisutil.TypeOf(pass, "database/sql", "*DB")
 	if sqlType == nil {
-		log.Printf("%s does not import database/sql",pass.Pkg.Name())
 		return nil, nil
 	}
 	forFilter := []ast.Node{
