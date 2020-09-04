@@ -36,7 +36,7 @@ func main() {
 
 	for _, person := range persons {
 		var job Job
-		err = dbmap.SelectOne(&job,"SELECT * FROM jobs where job_id=?",person.JobID)//want "this query called in loop"
+		err = dbmap.SelectOne(&job,"SELECT * FROM jobs where job_id=?",person.JobID)//want "this query is called in a loop"
 		if err != nil {
 			log.Fatal(err)
 		}

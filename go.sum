@@ -7,6 +7,10 @@ github.com/gostaticanalysis/analysisutil v0.1.1 h1:JBG5yLBMUWT3TD6r/5907oXI7ERiE
 github.com/gostaticanalysis/analysisutil v0.1.1/go.mod h1:dMhHRU9KTiDcuLGdy87/2gTR8WruwYZrKdRq9m1O6uw=
 github.com/gostaticanalysis/comment v1.3.0 h1:wTVgynbFu8/nz6SGgywA0TcyIoAVsYc7ai/Zp5xNGlw=
 github.com/gostaticanalysis/comment v1.3.0/go.mod h1:xMicKDx7XRXYdVwY9f9wQpDJVnqWxw9wCauCMKp+IBI=
+github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=
+github.com/jinzhu/inflection v1.0.0/go.mod h1:h+uFLlag+Qp1Va5pdKtLDYj+kHp5pxUVkryuEj+Srlc=
+github.com/jinzhu/now v1.1.1 h1:g39TucaRWyV3dwDO++eEc6qf8TVIQ/Da48WmqjZ3i7E=
+github.com/jinzhu/now v1.1.1/go.mod h1:d3SSVoowX0Lcu0IBviAWJpolVfI5UJVZZ7cO71lE/z8=
 github.com/jmoiron/sqlx v1.2.0 h1:41Ip0zITnmWNR/vHV+S4m+VoUivnWY5E4OJfLZjCJMA=
 github.com/jmoiron/sqlx v1.2.0/go.mod h1:1FEQNm3xlJgrMD+FBdI9+xvCksHtbpVBBw5dYhBSsks=
 github.com/lib/pq v1.0.0/go.mod h1:5WUZQaWbwv1U+lTReE5YruASi9Al49XbQIvNi/34Woo=
@@ -55,3 +59,8 @@ golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 h1:go1bK/D/BFZV2I8cIQd1N
 golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 gopkg.in/gorp.v1 v1.7.2 h1:j3DWlAyGVv8whO7AcIWznQ2Yj7yJkn34B8s63GViAAw=
 gopkg.in/gorp.v1 v1.7.2/go.mod h1:Wo3h+DBQZIxATwftsglhdD/62zRFPhGhTiu5jUJmCaw=
+gorm.io/driver/mysql v1.0.1 h1:omJoilUzyrAp0xNoio88lGJCroGdIOen9hq2A/+3ifw=
+gorm.io/driver/mysql v1.0.1/go.mod h1:KtqSthtg55lFp3S5kUXqlGaelnWpKitn4k1xZTnoiPw=
+gorm.io/gorm v1.9.19/go.mod h1:0HFTzE/SqkGTzK6TlDPPQbAYCluiVvhzoA1+aVyzenw=
+gorm.io/gorm v1.20.0 h1:qfIlyaZvrF7kMWY3jBdEBXkXJ2M5MFYMTppjILxS3fQ=
+gorm.io/gorm v1.20.0/go.mod h1:0HFTzE/SqkGTzK6TlDPPQbAYCluiVvhzoA1+aVyzenw=
