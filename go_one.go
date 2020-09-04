@@ -92,11 +92,9 @@ func anotherFileSearch(pass *analysis.Pass, funcExpr *ast.Ident, parentNode ast.
 	return false
 }
 
-
-
 func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 
-	if cacheNode, exist := funcMemo[rootNode.Pos()]; exist{
+	if cacheNode, exist := funcMemo[rootNode.Pos()]; exist {
 		if cacheNode {
 			pass.Reportf(parentNode.Pos(), "this query is called in a loop")
 		}
@@ -115,7 +113,7 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 				for _, typ := range sqlTypes {
 					if types.Identical(tv.Type, typ) {
 						pass.Reportf(reportNode.Pos(), "this query is called in a loop")
-						funcMemo[rootNode.Pos()]=true
+						funcMemo[rootNode.Pos()] = true
 						return false
 					}
 				}
@@ -130,11 +128,11 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 				}
 				switch decl := obj.Decl.(type) {
 				case *ast.FuncDecl:
-					if isSearched , ok := searchMemo[decl.Pos()]; !ok || !isSearched{
-						searchMemo[decl.Pos()]=true
+					if isSearched, ok := searchMemo[decl.Pos()]; !ok || !isSearched {
+						searchMemo[decl.Pos()] = true
 						findQuery(pass, decl, node)
-					}else{
-						if isQuery,  exist := funcMemo[decl.Pos()]; exist && isQuery{
+					} else {
+						if isQuery, exist := funcMemo[decl.Pos()]; exist && isQuery {
 							pass.Reportf(node.Pos(), "this query is called in a loop")
 						}
 					}
