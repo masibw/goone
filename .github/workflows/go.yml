@@ -30,7 +30,7 @@ jobs:
     - name: Get test dependencies
       run: |
         go mod vendor
-        working-directory: testdata/src/
+      working-directory: testdata/src/
     - name: Build
       run: go build -v .
 
