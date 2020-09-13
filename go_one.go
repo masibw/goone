@@ -1,11 +1,11 @@
-package go_one
+package goone
 
 import (
-	_ "database/sql"
-	"github.com/gostaticanalysis/analysisutil"
 	"go/ast"
 	"go/token"
 	"go/types"
+
+	"github.com/gostaticanalysis/analysisutil"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
