@@ -1,3 +1,5 @@
+![test_and_lint](https://github.com/masibw/go_one/workflows/test_and_lint/badge.svg)
+
 # go_one
 go_one finds N+1(strictly speaking call SQL in a for loop) query in go 
 
