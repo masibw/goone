@@ -1,4 +1,4 @@
-module github.com/masibw/go_one
+module github.com/masibw/goone
 
 go 1.14
 
