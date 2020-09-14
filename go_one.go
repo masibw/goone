@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"sync"
 
 	"github.com/gostaticanalysis/analysisutil"
 	"golang.org/x/tools/go/analysis"
@@ -13,9 +14,67 @@ import (
 
 const doc = "go_one finds N+1 query "
 
-var funcMemo map[token.Pos]bool = make(map[token.Pos]bool)
+type SearchCache struct{
+	sync.Mutex
+	searchMemo map[token.Pos]bool
+}
 
-var searchMemo map[token.Pos]bool = make(map[token.Pos]bool)
+
+func NewSearchCache() *SearchCache  {
+	return &SearchCache{
+		searchMemo: make(map[token.Pos]bool),
+	}
+}
+
+func (m *SearchCache) Set(key token.Pos, value bool) {
+	m.Lock()
+	m.searchMemo[key] = value
+	m.Unlock()
+}
+
+func (m *SearchCache) Get(key token.Pos) bool {
+	m.Lock()
+	value := m.searchMemo[key]
+	m.Unlock()
+	return value
+}
+
+
+type FuncCache struct{
+	sync.Mutex
+	funcMemo map[token.Pos]bool
+}
+
+
+func NewFuncCache() *FuncCache  {
+	return &FuncCache{
+		funcMemo: make(map[token.Pos]bool),
+	}
+}
+
+func (m *FuncCache) Set(key token.Pos, value bool) {
+	m.Lock()
+	m.funcMemo[key] = value
+	m.Unlock()
+}
+
+func (m* FuncCache) Exists(key token.Pos) bool {
+	m.Lock()
+	_, exist := m.funcMemo[key]
+	m.Unlock()
+	return exist
+}
+
+func (m *FuncCache) Get(key token.Pos) bool {
+	m.Lock()
+	value := m.funcMemo[key]
+	m.Unlock()
+	return value
+}
+
+var searchCache *SearchCache
+var funcCache *FuncCache
+
 
 // Analyzer is ...
 var Analyzer = &analysis.Analyzer{
@@ -46,7 +105,8 @@ func prepareTypes(pass *analysis.Pass) {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-
+	searchCache = NewSearchCache()
+	funcCache = NewFuncCache()
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	prepareTypes(pass)
 
@@ -94,8 +154,8 @@ func anotherFileSearch(pass *analysis.Pass, funcExpr *ast.Ident, parentNode ast.
 
 func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 
-	if cacheNode, exist := funcMemo[rootNode.Pos()]; exist {
-		if cacheNode {
+	if funcCache.Exists(rootNode.Pos()) {
+		if funcCache.Get(rootNode.Pos()) {
 			pass.Reportf(parentNode.Pos(), "this query is called in a loop")
 		}
 		return
@@ -113,7 +173,7 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 				for _, typ := range sqlTypes {
 					if types.Identical(tv.Type, typ) {
 						pass.Reportf(reportNode.Pos(), "this query is called in a loop")
-						funcMemo[rootNode.Pos()] = true
+						funcCache.Set(rootNode.Pos(),true)
 						return false
 					}
 				}
@@ -128,11 +188,11 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 				}
 				switch decl := obj.Decl.(type) {
 				case *ast.FuncDecl:
-					if isSearched, ok := searchMemo[decl.Pos()]; !ok || !isSearched {
-						searchMemo[decl.Pos()] = true
+					if !searchCache.Get(decl.Pos()) {
+						searchCache.Set(decl.Pos(),true)
 						findQuery(pass, decl, node)
 					} else {
-						if isQuery, exist := funcMemo[decl.Pos()]; exist && isQuery {
+						if funcCache.Get(decl.Pos()){
 							pass.Reportf(node.Pos(), "this query is called in a loop")
 						}
 					}
