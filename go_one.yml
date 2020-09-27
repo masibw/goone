@@ -1,0 +1,4 @@
+package:
+  - pkgName: 'dummy_type'
+    typeNames:
+      - typeName: 'Dummy'

@@ -1,15 +1,29 @@
 package go_one
 
 import (
-	_ "database/sql"
-	"github.com/gostaticanalysis/analysisutil"
 	"go/ast"
 	"go/token"
 	"go/types"
+	"io/ioutil"
+	"log"
+	"path/filepath"
+	"runtime"
+
+	"github.com/gostaticanalysis/analysisutil"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
+	"gopkg.in/yaml.v2"
 )
+
+type Types struct {
+	Package []struct {
+		PkgName   string `yaml:"pkgName"`
+		TypeNames []struct {
+			TypeName string `yaml:"typeName"`
+		} `yaml:"typeNames"`
+	} `yaml:"package"`
+}
 
 const doc = "go_one finds N+1 query "
 
@@ -34,7 +48,31 @@ func appendTypes(pass *analysis.Pass, pkg, name string) {
 	}
 }
 
+func readTypeConfig() *Types {
+	_, b, _, _ := runtime.Caller(0)
+	basePath := filepath.Dir(b)
+	buf, err := ioutil.ReadFile(basePath + "/go_one.yml")
+	if err != nil {
+		log.Fatalf("yml load error:%v", err)
+	}
+	typesFromConfig := Types{}
+	err = yaml.Unmarshal([]byte(buf), &typesFromConfig)
+	if err != nil {
+		log.Fatalf("yml parse error:%v", err)
+	}
+
+	return &typesFromConfig
+}
+
 func prepareTypes(pass *analysis.Pass) {
+
+	typesFromConfig := readTypeConfig()
+	for _, pkg := range typesFromConfig.Package {
+		pkgName := pkg.PkgName
+		for _, typeName := range pkg.TypeNames {
+			appendTypes(pass, pkgName, typeName.TypeName)
+		}
+	}
 
 	appendTypes(pass, "database/sql", "*DB")
 	appendTypes(pass, "gorm.io/gorm", "*DB")
@@ -42,7 +80,6 @@ func prepareTypes(pass *analysis.Pass) {
 	appendTypes(pass, "gopkg.in/gorp.v2", "*DbMap")
 	appendTypes(pass, "github.com/go-gorp/gorp/v3", "*DbMap")
 	appendTypes(pass, "github.com/jmoiron/sqlx", "*DB")
-
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
