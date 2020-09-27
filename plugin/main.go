@@ -7,7 +7,7 @@ package main
 import (
 	"strings"
 
-	"github.com/masibw/go_one"
+	"github.com/masibw/goone"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -18,18 +18,18 @@ var flags string
 
 // AnalyzerPlugin provides analyzers as base plugin.
 // It follows golangci-lint style plugin.
-var AnalyzerPlugin analyzerPlugin
+var AnalyzerPlugin analyzerPlugin //nolint
 
 type analyzerPlugin struct{}
 
 func (analyzerPlugin) GetAnalyzers() []*analysis.Analyzer {
 	if flags != "" {
-		flagset := go_one.Analyzer.Flags
+		flagset := goone.Analyzer.Flags
 		if err := flagset.Parse(strings.Split(flags, " ")); err != nil {
 			panic("cannot parse flags of go_one: " + err.Error())
 		}
 	}
 	return []*analysis.Analyzer{
-		go_one.Analyzer,
+		goone.Analyzer,
 	}
 }
