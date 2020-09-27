@@ -15,9 +15,9 @@ type Job struct {
 }
 
 func ForStmt() {
-	for  {
-		ctx, cancel := context.WithTimeout(context.Background(), 9)
-		defer cancel()
-		ctx.Done()//want "this query is called in a loop"
+	ctx, cancel := context.WithTimeout(context.Background(), 9)
+	defer cancel()
+	for {
+		ctx.Done() //want "this query is called in a loop"
 	}
 }
