@@ -29,8 +29,7 @@ type Types struct {
 const doc = "go_one finds N+1 query "
 
 type SearchCache struct{
-	
-  .Mutex
+  	sync.Mutex
 	searchMemo map[token.Pos]bool
 }
 
