@@ -7,14 +7,14 @@ import (
 	"io/ioutil"
 	"log"
 	"path/filepath"
-	"runtime"
 	"sync"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/gostaticanalysis/analysisutil"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
-	"gopkg.in/yaml.v2"
 )
 
 type Types struct {
@@ -85,6 +85,7 @@ func (m *FuncCache) Get(key token.Pos) bool {
 
 var searchCache *SearchCache
 var funcCache *FuncCache
+var configPath string
 
 // Analyzer is ...
 var Analyzer = &analysis.Analyzer{
@@ -97,18 +98,24 @@ var Analyzer = &analysis.Analyzer{
 }
 var sqlTypes []types.Type
 
+func init() {
+	defaultPath, err := filepath.Abs("go_one.yml")
+	if err != nil {
+		log.Println(err)
+	}
+	Analyzer.Flags.StringVar(&configPath, "configPath", defaultPath, "config file path(abs)")
+}
+
 func appendTypes(pass *analysis.Pass, pkg, name string) {
 	if typ := analysisutil.TypeOf(pass, pkg, name); typ != nil {
 		sqlTypes = append(sqlTypes, typ)
 	}
 }
 
-func readTypeConfig() *Types {
-	_, b, _, _ := runtime.Caller(0)
-	basePath := filepath.Dir(b)
-	buf, err := ioutil.ReadFile(basePath + "/go_one.yml")
+func readTypeConfig(configPath string) *Types {
+	buf, err := ioutil.ReadFile(configPath)
 	if err != nil {
-		log.Fatalf("yml load error:%v", err)
+		return nil
 	}
 	typesFromConfig := Types{}
 	err = yaml.Unmarshal([]byte(buf), &typesFromConfig)
@@ -119,13 +126,14 @@ func readTypeConfig() *Types {
 	return &typesFromConfig
 }
 
-func prepareTypes(pass *analysis.Pass) {
-
-	typesFromConfig := readTypeConfig()
-	for _, pkg := range typesFromConfig.Package {
-		pkgName := pkg.PkgName
-		for _, typeName := range pkg.TypeNames {
-			appendTypes(pass, pkgName, typeName.TypeName)
+func prepareTypes(pass *analysis.Pass, configPath string) {
+	typesFromConfig := readTypeConfig(configPath)
+	if typesFromConfig != nil {
+		for _, pkg := range typesFromConfig.Package {
+			pkgName := pkg.PkgName
+			for _, typeName := range pkg.TypeNames {
+				appendTypes(pass, pkgName, typeName.TypeName)
+			}
 		}
 	}
 
@@ -141,7 +149,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	searchCache = NewSearchCache()
 	funcCache = NewFuncCache()
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	prepareTypes(pass)
+	prepareTypes(pass, configPath)
 
 	if sqlTypes == nil {
 		return nil, nil
