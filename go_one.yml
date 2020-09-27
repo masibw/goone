@@ -1,4 +1,4 @@
 package:
-  - pkgName: 'dummy_type'
+  - pkgName: 'context'
     typeNames:
-      - typeName: 'Dummy'
+      - typeName: 'Context'

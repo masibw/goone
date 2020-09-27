@@ -1,7 +1,7 @@
 package user_def
 
 import (
-	"dummy_type"
+	"context"
 )
 
 type Person struct {
@@ -15,8 +15,9 @@ type Job struct {
 }
 
 func ForStmt() {
-	dummy := dummy_type.Dummy{}
 	for  {
-		dummy.DummyFunc()//want "this query is called in a loop"
+		ctx, cancel := context.WithTimeout(context.Background(), 9)
+		defer cancel()
+		ctx.Done()//want "this query is called in a loop"
 	}
 }
