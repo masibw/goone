@@ -1,4 +1,0 @@
-package:
-  - pkgName: 'context'
-    typeNames:
-      - typeName: 'Context'
