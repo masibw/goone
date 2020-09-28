@@ -6,7 +6,6 @@ import (
 	"go/types"
 	"io/ioutil"
 	"log"
-	"path/filepath"
 	"sync"
 
 	"gopkg.in/yaml.v2"
@@ -99,11 +98,7 @@ var Analyzer = &analysis.Analyzer{
 var sqlTypes []types.Type
 
 func init() {
-	defaultPath, err := filepath.Abs("go_one.yml")
-	if err != nil {
-		log.Println(err)
-	}
-	Analyzer.Flags.StringVar(&configPath, "configPath", defaultPath, "config file path(abs)")
+	Analyzer.Flags.StringVar(&configPath, "configPath", "", "config file path(abs)")
 }
 
 func appendTypes(pass *analysis.Pass, pkg, name string) {
