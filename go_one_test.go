@@ -16,6 +16,9 @@ func TestAnalyzer(t *testing.T) {
 	if err != nil {
 		log.Println(err)
 	}
-	goone.Analyzer.Flags.Set("configPath", defaultPath)
+	err = goone.Analyzer.Flags.Set("configPath", defaultPath)
+	if err != nil {
+		log.Println(err)
+	}
 	analysistest.Run(t, testdata, goone.Analyzer, "base", "separated", "gorm", "gorp", "sqlx", "user_def")
 }
