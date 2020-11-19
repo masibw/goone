@@ -80,6 +80,28 @@ go vet -vettool=(which go_one) ./...
 - gorp
 - gorm
 
+
+# Options
+You can use the `-go_one.configPath` option at runtime to determine if you want to use a specified types.
+
+## Example
+
+If go_one.yml exists in the directory where the command was executed
+```
+go vet -vettool=(which go_one) -go_one.configPath="$PWD/go_one.yml" ./...
+```
+
+go_one.yml
+```yaml:go_one.yml
+package:
+  - pkgName: 'dummy_pkg'
+    typeNames:
+      - typeName: 'Dummy'
+      - typeName: 'Dummy2'
+  - pkgName: 'dummy_pkg2'
+      - typeName: 'dammy'
+```
+
 # Contribute
 You're welcome to build an Issue or create a PR and be proactive!
 
