@@ -59,7 +59,7 @@ func main(){
 
 # Install
 ```
-go get github.com/masibw/go_one/cmd/go_one
+go get github.com/masibw/goone/cmd/go_one
 ```
 
 # Usage
