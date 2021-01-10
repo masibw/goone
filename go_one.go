@@ -7,6 +7,7 @@ import (
 	"go/types"
 	"io/ioutil"
 	"log"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -30,6 +31,33 @@ type Types struct {
 }
 
 const doc = "go_one finds N+1 query "
+
+type ReportCache struct {
+	sync.Mutex
+	reportMemo map[string]bool
+}
+
+func NewReportCache() *ReportCache {
+	return &ReportCache{
+		reportMemo: make(map[string]bool),
+	}
+}
+func (m *ReportCache) toKey(pass *analysis.Pass, pos token.Pos) (key string) {
+	posn := pass.Fset.Position(pos)
+	fileName, lineNum := posn.Filename, posn.Line
+	key = fileName + strconv.Itoa(lineNum)
+	return
+}
+func (m *ReportCache) Set(pass *analysis.Pass, pos token.Pos, value bool) {
+	key := m.toKey(pass, pos)
+	m.reportMemo[key] = value
+}
+
+func (m *ReportCache) Get(pass *analysis.Pass, pos token.Pos) bool {
+	key := m.toKey(pass, pos)
+	value := m.reportMemo[key]
+	return value
+}
 
 type SearchCache struct {
 	sync.Mutex
@@ -89,6 +117,9 @@ func (m *FuncCache) Get(key token.Pos) bool {
 // searchCache manages whether if already searched this node
 var searchCache *SearchCache
 
+// reportCache manages whether if this line already reported
+var reportCache *ReportCache
+
 // funcCache manages whether if this function contains queries
 var funcCache *FuncCache
 var configPath string
@@ -104,10 +135,6 @@ var Analyzer = &analysis.Analyzer{
 	},
 }
 var sqlTypes []types.Type
-
-type isWrapper struct{}
-
-func (f *isWrapper) AFact() {}
 
 func init() {
 	Analyzer.Flags.StringVar(&configPath, "configPath", "", "config file path(abs)")
@@ -155,6 +182,7 @@ func prepareTypes(pass *analysis.Pass, configPath string) {
 func run(pass *analysis.Pass) (interface{}, error) {
 	searchCache = NewSearchCache()
 	funcCache = NewFuncCache()
+	reportCache = NewReportCache()
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	prepareTypes(pass, configPath)
 
@@ -204,7 +232,7 @@ func anotherFileSearch(pass *analysis.Pass, funcExpr *ast.Ident, parentNode ast.
 		file := analysisutil.File(pass, anotherFileNode.Pos())
 		if file == nil {
 			if anotherFileNode.Pkg() != nil {
-				importPath := convertToImportPath(pass, fmt.Sprintf("%s", anotherFileNode.Pkg().Name()))
+				importPath := convertToImportPath(pass, anotherFileNode.Pkg().Name())
 				pkgs := loadImportPackages(importPath)
 
 				for _, pkg := range pkgs {
@@ -221,11 +249,21 @@ func anotherFileSearch(pass *analysis.Pass, funcExpr *ast.Ident, parentNode ast.
 	return false
 }
 
-func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *types.Info) {
+func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *types.Info) { //nolint:gocognit
 
 	if funcCache.Exists(rootNode.Pos()) {
 		if funcCache.Get(rootNode.Pos()) {
+
+			reportCache.Lock()
+			if reportCache.Get(pass, parentNode.Pos()) {
+				reportCache.Unlock()
+				return
+			}
+			reportCache.Set(pass, parentNode.Pos(), true)
+			reportCache.Unlock()
+
 			pass.Reportf(parentNode.Pos(), "this query is called in a loop")
+
 		}
 		return
 	}
@@ -255,8 +293,18 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 					//TODO Comparing by string is bad, but I don't have any ideas to compare another package's type
 					if tv.Type.String() == typ.String() {
 						//if types.Identical(tv.Type,typ){
+
+						reportCache.Lock()
+						if reportCache.Get(pass, reportNode.Pos()) {
+							reportCache.Unlock()
+							return false
+						}
+						reportCache.Set(pass, reportNode.Pos(), true)
+						reportCache.Unlock()
+
 						pass.Reportf(reportNode.Pos(), "this query is called in a loop")
 						funcCache.Set(rootNode.Pos(), true)
+						
 						return false
 					}
 				}
@@ -282,6 +330,15 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 						findQuery(pass, decl, newParentNode, nil)
 					} else {
 						if funcCache.Get(decl.Pos()) {
+
+							reportCache.Lock()
+							if reportCache.Get(pass, node.Pos()) {
+								reportCache.Unlock()
+								return false
+							}
+							reportCache.Set(pass, node.Pos(), true)
+							reportCache.Unlock()
+
 							pass.Reportf(node.Pos(), "this query is called in a loop")
 						}
 					}
