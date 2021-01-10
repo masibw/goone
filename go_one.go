@@ -1,12 +1,17 @@
 package goone
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
 	"io/ioutil"
 	"log"
+	"strconv"
+	"strings"
 	"sync"
+
+	"golang.org/x/tools/go/packages"
 
 	"gopkg.in/yaml.v2"
 
@@ -26,6 +31,33 @@ type Types struct {
 }
 
 const doc = "go_one finds N+1 query "
+
+type ReportCache struct {
+	sync.Mutex
+	reportMemo map[string]bool
+}
+
+func NewReportCache() *ReportCache {
+	return &ReportCache{
+		reportMemo: make(map[string]bool),
+	}
+}
+func (m *ReportCache) toKey(pass *analysis.Pass, pos token.Pos) (key string) {
+	posn := pass.Fset.Position(pos)
+	fileName, lineNum := posn.Filename, posn.Line
+	key = fileName + strconv.Itoa(lineNum)
+	return
+}
+func (m *ReportCache) Set(pass *analysis.Pass, pos token.Pos, value bool) {
+	key := m.toKey(pass, pos)
+	m.reportMemo[key] = value
+}
+
+func (m *ReportCache) Get(pass *analysis.Pass, pos token.Pos) bool {
+	key := m.toKey(pass, pos)
+	value := m.reportMemo[key]
+	return value
+}
 
 type SearchCache struct {
 	sync.Mutex
@@ -82,15 +114,22 @@ func (m *FuncCache) Get(key token.Pos) bool {
 	return value
 }
 
+// searchCache manages whether if already searched this node
 var searchCache *SearchCache
+
+// reportCache manages whether if this line already reported
+var reportCache *ReportCache
+
+// funcCache manages whether if this function contains queries
 var funcCache *FuncCache
 var configPath string
 
-// Analyzer is ...
+// Analyzer is analysis files
 var Analyzer = &analysis.Analyzer{
 	Name: "go_one",
 	Doc:  doc,
 	Run:  run,
+	//FactTypes: []analysis.Fact{new(isWrapper)}, // When Fact is specified, Analyzer also runs on imported files(packages.Loadで読み取るのでいらないはず)
 	Requires: []*analysis.Analyzer{
 		inspect.Analyzer,
 	},
@@ -143,6 +182,7 @@ func prepareTypes(pass *analysis.Pass, configPath string) {
 func run(pass *analysis.Pass) (interface{}, error) {
 	searchCache = NewSearchCache()
 	funcCache = NewFuncCache()
+	reportCache = NewReportCache()
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	prepareTypes(pass, configPath)
 
@@ -157,42 +197,76 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	inspect.Preorder(forFilter, func(n ast.Node) {
 		switch n := n.(type) {
 		case *ast.ForStmt, *ast.RangeStmt:
-			findQuery(pass, n, nil)
+			findQuery(pass, n, nil, nil)
 		}
+<<<<<<< HEAD
+=======
 	})
-
 	return nil, nil
+}
+
+func inspectFile(pass *analysis.Pass, parentNode ast.Node, file *ast.File, funcName string, pkgTypes *types.Info) {
+	inspect := inspector.New([]*ast.File{file})
+	types := []ast.Node{new(ast.FuncDecl)}
+
+	inspect.Preorder(types, func(n ast.Node) {
+		switch n := n.(type) {
+		case *ast.FuncDecl:
+			if n.Name.Name == funcName {
+				findQuery(pass, n, parentNode, pkgTypes)
+			}
+		}
+>>>>>>> fac6aadf321c2a5d0f03a7bd12d2029dd3419131
+	})
+}
+
+func loadImportPackages(pkgName string) (pkgs []*packages.Package) {
+	config := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo}
+	var err error
+	pkgs, err = packages.Load(config, pkgName)
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+	return
 }
 
 func anotherFileSearch(pass *analysis.Pass, funcExpr *ast.Ident, parentNode ast.Node) bool {
 	if anotherFileNode := pass.TypesInfo.ObjectOf(funcExpr); anotherFileNode != nil {
 		file := analysisutil.File(pass, anotherFileNode.Pos())
-
 		if file == nil {
-			return false
-		}
-		inspect := inspector.New([]*ast.File{file})
-		types := []ast.Node{new(ast.FuncDecl)}
+			if anotherFileNode.Pkg() != nil {
+				importPath := convertToImportPath(pass, anotherFileNode.Pkg().Name())
+				pkgs := loadImportPackages(importPath)
 
-		inspect.Preorder(types, func(n ast.Node) {
-			switch n := n.(type) {
-			case *ast.FuncDecl:
-				if n.Name.Name == funcExpr.Name {
-					findQuery(pass, n, parentNode)
+				for _, pkg := range pkgs {
+					for _, file := range pkg.Syntax {
+						inspectFile(pass, parentNode, file, funcExpr.Name, pkg.TypesInfo)
+					}
 				}
 			}
-		})
-
+			return false
+		}
+		inspectFile(pass, parentNode, file, funcExpr.Name, nil)
 	}
 
 	return false
 }
 
-func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
+func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *types.Info) { //nolint:gocognit
 
 	if funcCache.Exists(rootNode.Pos()) {
 		if funcCache.Get(rootNode.Pos()) {
+
+			reportCache.Lock()
+			if reportCache.Get(pass, parentNode.Pos()) {
+				reportCache.Unlock()
+				return
+			}
+			reportCache.Set(pass, parentNode.Pos(), true)
+			reportCache.Unlock()
+
 			pass.Reportf(parentNode.Pos(), "this query is called in a loop")
+
 		}
 		return
 	}
@@ -201,15 +275,39 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 		switch node := n.(type) {
 		case *ast.Ident:
 
-			if tv, ok := pass.TypesInfo.Types[node]; ok {
+			// pass doesn't have a separate package typesInfo, so we need to pass the pkg info.
+			var tv types.TypeAndValue
+			var ok bool
+
+			// Use types of pass(same package) or pkgTypes(another package)
+			if tv, ok = pass.TypesInfo.Types[node]; !ok && pkgTypes != nil {
+				if tvTmp, exist := pkgTypes.Types[node]; exist {
+					tv, ok = tvTmp, exist
+				}
+			}
+
+			if ok {
 				reportNode := parentNode
 				if reportNode == nil {
 					reportNode = node
 				}
+
 				for _, typ := range sqlTypes {
-					if types.Identical(tv.Type, typ) {
+					//TODO Comparing by string is bad, but I don't have any ideas to compare another package's type
+					if tv.Type.String() == typ.String() {
+						//if types.Identical(tv.Type,typ){
+
+						reportCache.Lock()
+						if reportCache.Get(pass, reportNode.Pos()) {
+							reportCache.Unlock()
+							return false
+						}
+						reportCache.Set(pass, reportNode.Pos(), true)
+						reportCache.Unlock()
+
 						pass.Reportf(reportNode.Pos(), "this query is called in a loop")
 						funcCache.Set(rootNode.Pos(), true)
+						
 						return false
 					}
 				}
@@ -219,6 +317,7 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 			switch funcExpr := node.Fun.(type) {
 			case *ast.Ident:
 				obj := funcExpr.Obj
+				//if function does not exist in same file
 				if obj == nil {
 					return anotherFileSearch(pass, funcExpr, node)
 				}
@@ -226,13 +325,51 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 				case *ast.FuncDecl:
 					if !searchCache.Get(decl.Pos()) {
 						searchCache.Set(decl.Pos(), true)
-						findQuery(pass, decl, node)
+						newParentNode := parentNode
+						if parentNode == nil {
+							newParentNode = node
+						}
+
+						findQuery(pass, decl, newParentNode, nil)
 					} else {
 						if funcCache.Get(decl.Pos()) {
+
+							reportCache.Lock()
+							if reportCache.Get(pass, node.Pos()) {
+								reportCache.Unlock()
+								return false
+							}
+							reportCache.Set(pass, node.Pos(), true)
+							reportCache.Unlock()
+
 							pass.Reportf(node.Pos(), "this query is called in a loop")
 						}
 					}
 
+				}
+			//inspect another package file
+			case *ast.SelectorExpr:
+				obj := funcExpr.Sel.Obj
+				if obj == nil {
+					//TODO get packageName without fmt.Sprinf
+					importPath := convertToImportPath(pass, fmt.Sprintf("%s", funcExpr.X))
+
+					pkgs := loadImportPackages(importPath)
+					for _, pkg := range pkgs {
+
+						//Do not scan standard packages. Is it...ok?
+						if !strings.Contains(pkg.PkgPath, ".") {
+							continue
+						}
+						for _, file := range pkg.Syntax {
+							newParentNode := parentNode
+							if parentNode == nil {
+								newParentNode = node
+							}
+
+							inspectFile(pass, newParentNode, file, funcExpr.Sel.Name, pkg.TypesInfo)
+						}
+					}
 				}
 
 			}
@@ -241,4 +378,17 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 		return true
 
 	})
+}
+
+func convertToImportPath(pass *analysis.Pass, pkgName string) (importPath string) {
+	for _, v := range pass.Pkg.Imports() {
+		if strings.HasSuffix("/"+v.Path(), pkgName) {
+			importPath = v.Path()
+			if strings.HasPrefix(importPath, "vendor/") {
+				importPath = strings.TrimPrefix(importPath, "vendor/")
+			}
+			return
+		}
+	}
+	return
 }
