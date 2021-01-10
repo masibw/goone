@@ -1,9 +1,10 @@
-package another_package
+package another_package_dot
 
 import (
 	"database/sql"
 	"fmt"
-	"github.com/masibw/goone_test/pkg/db"
+
+	. "github.com/masibw/goone_test/pkg/db"
 
 	"log"
 )
@@ -19,11 +20,11 @@ func main() {
 	defer rows.Close()
 
 	for rows.Next() {
-		var person db.Person
+		var person Person
 		if err := rows.Scan(&person.Name, &person.JobID); err != nil {
 			log.Fatal(err)
 		}
-		job := db.GetJobInsideCnn(person) //want "this query is called in a loop"
+		job := GetJob2(cnn,person)//want "this query is called in a loop"
 		fmt.Println(person.Name, job.Name)
 	}
 

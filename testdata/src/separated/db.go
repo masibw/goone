@@ -11,3 +11,8 @@ func GetJob2(person Person) Job {
 	}
 	return job
 }
+
+
+func NotCallQuery() Job{
+	return Job{Name:"dont",JobID:1}
+}

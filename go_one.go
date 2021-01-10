@@ -5,8 +5,10 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"golang.org/x/tools/go/packages"
 	"io/ioutil"
 	"log"
+	"strings"
 	"sync"
 
 	"gopkg.in/yaml.v2"
@@ -82,22 +84,26 @@ func (m *FuncCache) Get(key token.Pos) bool {
 	m.Unlock()
 	return value
 }
-
+// searchCache manages whether if already searched this node
 var searchCache *SearchCache
+// funcCache manages whether if this function contains queries
 var funcCache *FuncCache
 var configPath string
 
-// Analyzer is ...
+// Analyzer is analysis files
 var Analyzer = &analysis.Analyzer{
 	Name:      "go_one",
 	Doc:       doc,
 	Run:       run,
-	FactTypes: []analysis.Fact{new(isWrapper)},
+	//FactTypes: []analysis.Fact{new(isWrapper)}, // When Fact is specified, Analyzer also runs on imported files(packages.Loadで読み取るのでいらないはず)
 	Requires: []*analysis.Analyzer{
 		inspect.Analyzer,
 	},
 }
 var sqlTypes []types.Type
+type isWrapper struct{}
+
+func (f *isWrapper) AFact() {}
 
 func init() {
 	Analyzer.Flags.StringVar(&configPath, "configPath", "", "config file path(abs)")
@@ -142,10 +148,6 @@ func prepareTypes(pass *analysis.Pass, configPath string) {
 	appendTypes(pass, "github.com/jmoiron/sqlx", "*DB")
 }
 
-type isWrapper struct{}
-
-func (f *isWrapper) AFact() {}
-
 func run(pass *analysis.Pass) (interface{}, error) {
 	searchCache = NewSearchCache()
 	funcCache = NewFuncCache()
@@ -167,28 +169,57 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 
 	})
-
+	pass.Pkg.MarkComplete()
 	return nil, nil
+}
+
+func inspectFile(pass *analysis.Pass, parentNode ast.Node, file *ast.File){
+	inspect := inspector.New([]*ast.File{file})
+	types := []ast.Node{new(ast.FuncDecl)}
+	inspect.WithStack(types, func(n ast.Node, push bool, stack []ast.Node) bool {
+		if !push {
+			return false
+		}
+
+		findQuery(pass, n, parentNode)
+		return true
+	})
+}
+
+func loadImportPackages(pkgName string)(pkgs []*packages.Package){
+	config := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo}
+	var err error
+	pkgs, err = packages.Load(config,pkgName)
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+	return
 }
 
 func anotherFileSearch(pass *analysis.Pass, funcExpr *ast.Ident, parentNode ast.Node) bool {
 	if anotherFileNode := pass.TypesInfo.ObjectOf(funcExpr); anotherFileNode != nil {
 		file := analysisutil.File(pass, anotherFileNode.Pos())
-
+		//anotherFileNode.Pos()はあるのにpass.Filesがseparatedの情報を持ってない...まじ？ -> package名がanotherFileNode.Pkg().Path()で取れた
 		if file == nil {
+			if anotherFileNode.Pkg() != nil {
+
+				//テストは通らないけどそれは"separated"では実際にgetできないので見にいく対象がないだけだと思う、どうテストするかは//TODO
+				fmt.Println("pkg name",anotherFileNode.Pkg().Name())
+				//TODO ここもgithub.com~始まるやつはとれないはず
+				pkgs := loadImportPackages(anotherFileNode.Pkg().Name())
+
+				for _, pkg := range pkgs {
+					fmt.Println("pkg",pkg)
+					for _, file := range pkg.Syntax {
+						fmt.Println("file",file)
+						inspectFile(pass,parentNode,file)
+					}
+				}
+			}
 			return false
 		}
-		inspect := inspector.New([]*ast.File{file})
-		types := []ast.Node{new(ast.FuncDecl)}
-		inspect.WithStack(types, func(n ast.Node, push bool, stack []ast.Node) bool {
-			if !push {
-				return false
-			}
 
-			findQuery(pass, n, parentNode)
-			return true
-		})
-
+		inspectFile(pass,parentNode,file)
 	}
 
 	return false
@@ -229,47 +260,6 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 				if obj == nil {
 					return anotherFileSearch(pass, funcExpr, node)
 				}
-				//if function exists in same file
-				switch decl := obj.Decl.(type) {
-				case *ast.FuncDecl:
-					findQuery(pass, decl, node)
-				}
-
-			//another package function
-			case *ast.SelectorExpr:
-				obj := funcExpr.Sel.Obj
-				if obj == nil {
-					if anotherFileNode := pass.TypesInfo.ObjectOf(funcExpr.Sel); anotherFileNode != nil {
-
-						for _, p := range pass.Pkg.Imports() {
-							anotherFileFunc := p.Scope().Lookup(anotherFileNode.Name())
-							if anotherFileFunc == nil {
-								continue
-							}
-
-							//fmt.Println(anotherFileFunc.Pos())
-							//PosはあるがNilになる(pass.Filesの中に該当ファイルがないのが問題ぽい)
-							file := analysisutil.File(pass, anotherFileFunc.Pos())
-
-							if file == nil {
-								continue
-							}
-							fmt.Println(file)
-							inspect := inspector.New([]*ast.File{file})
-							types := []ast.Node{new(ast.FuncDecl)}
-							inspect.WithStack(types, func(n ast.Node, push bool, stack []ast.Node) bool {
-								if !push {
-									return false
-								}
-								findQuery(pass, n, node)
-								return true
-							})
-
-						}
-
-						return false
-					}
-				}
 				switch decl := obj.Decl.(type) {
 				case *ast.FuncDecl:
 					if !searchCache.Get(decl.Pos()) {
@@ -281,6 +271,35 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 						}
 					}
 
+				}
+			//inspect another package file
+			case *ast.SelectorExpr:
+				obj := funcExpr.Sel.Obj
+				if obj == nil {
+					//TODO fmt.Sprintf("%s",funcExpr.X)からは"github~"を取れないのでpass.Pkg.Imports()と一致するのを探す必要がある
+					pkgs := loadImportPackages("github.com/masibw/goone_test/pkg/db")
+					for _, pkg := range pkgs {
+
+						//Do not scan standard packages
+						if !strings.Contains(pkg.PkgPath,"db"){
+							continue
+						}
+						//imports := pass.Pkg.Imports()
+						//for _, imp := range imports{
+						//	fmt.Println("a")
+						//	fmt.Println(imp.Name())
+						//	fmt.Println(imp.Path())
+						//}
+						//fmt.Println(pass.Pkg.Imports())
+						//fmt.Println("path2",pkg.PkgPath)
+						fmt.Println(pkg.Syntax)
+						for _, file := range pkg.Syntax {
+					   //TODO:本当にこれでいいっけ？要検討 単にファイルにsql呼び出しが存在すればになってない？大丈夫？ちゃんと呼び出した関数内に になってる？
+							fmt.Println("file.name",file.Name)
+							//無限ループしてそう, 終わらない
+							//inspectFile(pass,parentNode,file)
+						}
+					}
 				}
 
 			}
