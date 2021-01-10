@@ -2,7 +2,7 @@ package separated
 
 import "log"
 
-func getJob2(person Person) Job {
+func GetJob2(person Person) Job {
 	var job Job
 	// This is N+1 Query
 	err := cnn.QueryRow("SELECT job_id, name FROM Jobs WHERE job_id = ?", person.JobID).Scan(&job.JobID, &job.Name)
@@ -10,4 +10,9 @@ func getJob2(person Person) Job {
 		log.Fatal(err)
 	}
 	return job
+}
+
+
+func NotCallQuery() Job{
+	return Job{Name:"dont",JobID:1}
 }

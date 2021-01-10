@@ -20,5 +20,5 @@ func TestAnalyzer(t *testing.T) {
 	if err != nil {
 		log.Println(err)
 	}
-	analysistest.Run(t, testdata, goone.Analyzer, "base", "separated", "gorm", "gorp", "sqlx", "user_def")
+	analysistest.Run(t, testdata, goone.Analyzer, "another_package", "another_package_dot", "base", "dummy_type", "gorm", "gorp", "separated", "sqlx", "user_def")
 }
