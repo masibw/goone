@@ -5,11 +5,12 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"golang.org/x/tools/go/packages"
 	"io/ioutil"
 	"log"
 	"strings"
 	"sync"
+
+	"golang.org/x/tools/go/packages"
 
 	"gopkg.in/yaml.v2"
 
@@ -84,23 +85,26 @@ func (m *FuncCache) Get(key token.Pos) bool {
 	m.Unlock()
 	return value
 }
+
 // searchCache manages whether if already searched this node
 var searchCache *SearchCache
+
 // funcCache manages whether if this function contains queries
 var funcCache *FuncCache
 var configPath string
 
 // Analyzer is analysis files
 var Analyzer = &analysis.Analyzer{
-	Name:      "go_one",
-	Doc:       doc,
-	Run:       run,
+	Name: "go_one",
+	Doc:  doc,
+	Run:  run,
 	//FactTypes: []analysis.Fact{new(isWrapper)}, // When Fact is specified, Analyzer also runs on imported files(packages.Loadで読み取るのでいらないはず)
 	Requires: []*analysis.Analyzer{
 		inspect.Analyzer,
 	},
 }
 var sqlTypes []types.Type
+
 type isWrapper struct{}
 
 func (f *isWrapper) AFact() {}
@@ -165,30 +169,30 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	inspect.Preorder(forFilter, func(n ast.Node) {
 		switch n := n.(type) {
 		case *ast.ForStmt, *ast.RangeStmt:
-			findQuery(pass, n, nil)
+			findQuery(pass, n, nil, nil)
 		}
 	})
-	pass.Pkg.MarkComplete()
 	return nil, nil
 }
 
-func inspectFile(pass *analysis.Pass, parentNode ast.Node, file *ast.File){
+func inspectFile(pass *analysis.Pass, parentNode ast.Node, file *ast.File, funcName string, pkgTypes *types.Info) {
 	inspect := inspector.New([]*ast.File{file})
 	types := []ast.Node{new(ast.FuncDecl)}
-	inspect.WithStack(types, func(n ast.Node, push bool, stack []ast.Node) bool {
-		if !push {
-			return false
-		}
 
-		findQuery(pass, n, parentNode)
-		return true
+	inspect.Preorder(types, func(n ast.Node) {
+		switch n := n.(type) {
+		case *ast.FuncDecl:
+			if n.Name.Name == funcName {
+				findQuery(pass, n, parentNode, pkgTypes)
+			}
+		}
 	})
 }
 
-func loadImportPackages(pkgName string)(pkgs []*packages.Package){
+func loadImportPackages(pkgName string) (pkgs []*packages.Package) {
 	config := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo}
 	var err error
-	pkgs, err = packages.Load(config,pkgName)
+	pkgs, err = packages.Load(config, pkgName)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
@@ -198,44 +202,26 @@ func loadImportPackages(pkgName string)(pkgs []*packages.Package){
 func anotherFileSearch(pass *analysis.Pass, funcExpr *ast.Ident, parentNode ast.Node) bool {
 	if anotherFileNode := pass.TypesInfo.ObjectOf(funcExpr); anotherFileNode != nil {
 		file := analysisutil.File(pass, anotherFileNode.Pos())
-		//anotherFileNode.Pos()はあるのにpass.Filesがseparatedの情報を持ってない...まじ？ -> package名がanotherFileNode.Pkg().Path()で取れた
 		if file == nil {
 			if anotherFileNode.Pkg() != nil {
-
-				//テストは通らないけどそれは"separated"では実際にgetできないので見にいく対象がないだけだと思う、どうテストするかは//TODO
-				fmt.Println("pkg name",anotherFileNode.Pkg().Name())
-				//TODO ここもgithub.com~始まるやつはとれないはず
-				pkgs := loadImportPackages(anotherFileNode.Pkg().Name())
+				importPath := convertToImportPath(pass, fmt.Sprintf("%s", anotherFileNode.Pkg().Name()))
+				pkgs := loadImportPackages(importPath)
 
 				for _, pkg := range pkgs {
-					fmt.Println("pkg",pkg)
 					for _, file := range pkg.Syntax {
-						fmt.Println("file",file)
-						inspectFile(pass,parentNode,file)
+						inspectFile(pass, parentNode, file, funcExpr.Name, pkg.TypesInfo)
 					}
 				}
 			}
 			return false
 		}
-		inspect := inspector.New([]*ast.File{file})
-		types := []ast.Node{new(ast.FuncDecl)}
-
-		inspect.Preorder(types, func(n ast.Node) {
-			switch n := n.(type) {
-			case *ast.FuncDecl:
-				if n.Name.Name == funcExpr.Name {
-					findQuery(pass, n, parentNode)
-				}
-			}
-		})
-
-		inspectFile(pass,parentNode,file)
+		inspectFile(pass, parentNode, file, funcExpr.Name, nil)
 	}
 
 	return false
 }
 
-func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
+func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *types.Info) {
 
 	if funcCache.Exists(rootNode.Pos()) {
 		if funcCache.Get(rootNode.Pos()) {
@@ -248,13 +234,27 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 		switch node := n.(type) {
 		case *ast.Ident:
 
-			if tv, ok := pass.TypesInfo.Types[node]; ok {
+			// pass doesn't have a separate package typesInfo, so we need to pass the pkg info.
+			var tv types.TypeAndValue
+			var ok bool
+
+			// Use types of pass(same package) or pkgTypes(another package)
+			if tv, ok = pass.TypesInfo.Types[node]; !ok && pkgTypes != nil {
+				if tvTmp, exist := pkgTypes.Types[node]; exist {
+					tv, ok = tvTmp, exist
+				}
+			}
+
+			if ok {
 				reportNode := parentNode
 				if reportNode == nil {
 					reportNode = node
 				}
+
 				for _, typ := range sqlTypes {
-					if types.Identical(tv.Type, typ) {
+					//TODO Comparing by string is bad, but I don't have any ideas to compare another package's type
+					if tv.Type.String() == typ.String() {
+						//if types.Identical(tv.Type,typ){
 						pass.Reportf(reportNode.Pos(), "this query is called in a loop")
 						funcCache.Set(rootNode.Pos(), true)
 						return false
@@ -274,7 +274,12 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 				case *ast.FuncDecl:
 					if !searchCache.Get(decl.Pos()) {
 						searchCache.Set(decl.Pos(), true)
-						findQuery(pass, decl, node)
+						newParentNode := parentNode
+						if parentNode == nil {
+							newParentNode = node
+						}
+
+						findQuery(pass, decl, newParentNode, nil)
 					} else {
 						if funcCache.Get(decl.Pos()) {
 							pass.Reportf(node.Pos(), "this query is called in a loop")
@@ -286,28 +291,23 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 			case *ast.SelectorExpr:
 				obj := funcExpr.Sel.Obj
 				if obj == nil {
-					//TODO fmt.Sprintf("%s",funcExpr.X)からは"github~"を取れないのでpass.Pkg.Imports()と一致するのを探す必要がある
-					pkgs := loadImportPackages("github.com/masibw/goone_test/pkg/db")
+					//TODO get packageName without fmt.Sprinf
+					importPath := convertToImportPath(pass, fmt.Sprintf("%s", funcExpr.X))
+
+					pkgs := loadImportPackages(importPath)
 					for _, pkg := range pkgs {
 
-						//Do not scan standard packages
-						if !strings.Contains(pkg.PkgPath,"db"){
+						//Do not scan standard packages. Is it...ok?
+						if !strings.Contains(pkg.PkgPath, ".") {
 							continue
 						}
-						//imports := pass.Pkg.Imports()
-						//for _, imp := range imports{
-						//	fmt.Println("a")
-						//	fmt.Println(imp.Name())
-						//	fmt.Println(imp.Path())
-						//}
-						//fmt.Println(pass.Pkg.Imports())
-						//fmt.Println("path2",pkg.PkgPath)
-						fmt.Println(pkg.Syntax)
 						for _, file := range pkg.Syntax {
-					   //TODO:本当にこれでいいっけ？要検討 単にファイルにsql呼び出しが存在すればになってない？大丈夫？ちゃんと呼び出した関数内に になってる？
-							fmt.Println("file.name",file.Name)
-							//無限ループしてそう, 終わらない
-							//inspectFile(pass,parentNode,file)
+							newParentNode := parentNode
+							if parentNode == nil {
+								newParentNode = node
+							}
+
+							inspectFile(pass, newParentNode, file, funcExpr.Sel.Name, pkg.TypesInfo)
 						}
 					}
 				}
@@ -318,4 +318,17 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node) {
 		return true
 
 	})
+}
+
+func convertToImportPath(pass *analysis.Pass, pkgName string) (importPath string) {
+	for _, v := range pass.Pkg.Imports() {
+		if strings.HasSuffix("/"+v.Path(), pkgName) {
+			importPath = v.Path()
+			if strings.HasPrefix(importPath, "vendor/") {
+				importPath = strings.TrimPrefix(importPath, "vendor/")
+			}
+			return
+		}
+	}
+	return
 }

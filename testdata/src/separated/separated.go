@@ -43,7 +43,7 @@ func main() {
 		}
 		job := getJob(person) //want "this query is called in a loop"
 		job = getJob(person)  //want "this query is called in a loop"
-		job = getJob2(person) //want "this query is called in a loop"
+		job = GetJob2(person) //want "this query is called in a loop"
 		job = NotCallQuery()  // This should be not detected
 		fmt.Println(person.Name, job.Name)
 	}
