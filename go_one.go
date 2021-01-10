@@ -167,7 +167,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		case *ast.ForStmt, *ast.RangeStmt:
 			findQuery(pass, n, nil)
 		}
-
 	})
 	pass.Pkg.MarkComplete()
 	return nil, nil
@@ -218,6 +217,17 @@ func anotherFileSearch(pass *analysis.Pass, funcExpr *ast.Ident, parentNode ast.
 			}
 			return false
 		}
+		inspect := inspector.New([]*ast.File{file})
+		types := []ast.Node{new(ast.FuncDecl)}
+
+		inspect.Preorder(types, func(n ast.Node) {
+			switch n := n.(type) {
+			case *ast.FuncDecl:
+				if n.Name.Name == funcExpr.Name {
+					findQuery(pass, n, parentNode)
+				}
+			}
+		})
 
 		inspectFile(pass,parentNode,file)
 	}
