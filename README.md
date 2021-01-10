@@ -80,6 +80,7 @@ go vet -vettool=(which go_one) ./...
 - gorp
 - gorm
 
+You can add types to detect sql query.
 
 # Options
 You can use the `-go_one.configPath` option at runtime to determine if you want to use a specified types.
@@ -88,18 +89,15 @@ You can use the `-go_one.configPath` option at runtime to determine if you want 
 
 If go_one.yml exists in the directory where the command was executed
 ```
-go vet -vettool=(which go_one) -go_one.configPath="$PWD/go_one.yml" ./...
+go vet -vettool=`which go_one` -go_one.configPath="$PWD/go_one.yml" ./...
 ```
 
-go_one.yml
+You can also detect the case where an interface is in between by writing below. example [project](https://github.com/masibw/go_todo)
 ```yaml:go_one.yml
 package:
-  - pkgName: 'dummy_pkg'
+  - pkgName: 'github.com/masibw/go_todo/cmd/go_todo/infrastructure/api/handler'
     typeNames:
-      - typeName: 'Dummy'
-      - typeName: 'Dummy2'
-  - pkgName: 'dummy_pkg2'
-      - typeName: 'dammy'
+      - typeName: '*todoHandler'
 ```
 
 # Contribute
