@@ -141,9 +141,22 @@ func init() {
 }
 
 func appendTypes(pass *analysis.Pass, pkg, name string) {
+
 	if typ := analysisutil.TypeOf(pass, pkg, name); typ != nil {
 		sqlTypes = append(sqlTypes, typ)
+	} else {
+		if name[0] == '*' {
+			name = name[1:]
+			pkg = "*" + pkg
+		}
+		for _, v := range pass.TypesInfo.Types {
+			if v.Type.String() == pkg+"."+name {
+				sqlTypes = append(sqlTypes, v.Type)
+				return
+			}
+		}
 	}
+
 }
 
 func readTypeConfig(configPath string) *Types {
@@ -185,8 +198,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	reportCache = NewReportCache()
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	prepareTypes(pass, configPath)
-
 	if sqlTypes == nil {
+		log.Println("There is no types which call sql")
 		return nil, nil
 	}
 	forFilter := []ast.Node{
@@ -282,7 +295,6 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 					tv, ok = tvTmp, exist
 				}
 			}
-
 			if ok {
 				reportNode := parentNode
 				if reportNode == nil {
@@ -304,7 +316,7 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 
 						pass.Reportf(reportNode.Pos(), "this query is called in a loop")
 						funcCache.Set(rootNode.Pos(), true)
-						
+
 						return false
 					}
 				}
