@@ -30,7 +30,7 @@ type Types struct {
 	} `yaml:"package"`
 }
 
-const doc = "go_one finds N+1 query "
+const doc = "goone finds N+1 query "
 
 type ReportCache struct {
 	sync.Mutex
@@ -126,7 +126,7 @@ var configPath string
 
 // Analyzer is analysis files
 var Analyzer = &analysis.Analyzer{
-	Name: "go_one",
+	Name: "goone",
 	Doc:  doc,
 	Run:  run,
 	//FactTypes: []analysis.Fact{new(isWrapper)}, // When Fact is specified, Analyzer also runs on imported files(packages.Loadで読み取るのでいらないはず)
