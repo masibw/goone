@@ -12,7 +12,7 @@ import (
 // TestAnalyzer is base test for Analyzer.
 func TestAnalyzer(t *testing.T) {
 	testdata := analysistest.TestData()
-	defaultPath, err := filepath.Abs("go_one.yml")
+	defaultPath, err := filepath.Abs("goone.yml")
 	if err != nil {
 		log.Println(err)
 	}

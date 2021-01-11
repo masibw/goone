@@ -1,7 +1,7 @@
 ![test_and_lint](https://github.com/masibw/go_one/workflows/test_and_lint/badge.svg)
 
-# go_one
-go_one finds N+1(strictly speaking call SQL in a for loop) query in go 
+# goone
+goone finds N+1(strictly speaking call SQL in a for loop) query in go 
 
 ## Example
 ```go
@@ -59,19 +59,29 @@ func main(){
 
 # Install
 ```
-go get github.com/masibw/goone/cmd/go_one
+go get github.com/masibw/goone/cmd/goone
 ```
 
 # Usage
 
 ## bash
 ```
-go vet -vettool=`which go_one` ./...
+go vet -vettool=`which goone` ./...
 ```
 
 ## fish
 ```
-go vet -vettool=(which go_one) ./...
+go vet -vettool=(which goone) ./...
+```
+
+
+## CI
+### Github Actions
+```
+- name: install goone
+    run: go get -u github.com/masibw/goone/cmd/goone
+- name: run goone
+    run: go vet -vettool=`which goone` -goone.configPath="$PWD/goone.yml" ./...
 ```
 
 # Library Support
@@ -83,17 +93,17 @@ go vet -vettool=(which go_one) ./...
 You can add types to detect sql query.
 
 # Options
-You can use the `-go_one.configPath` option at runtime to determine if you want to use a specified types.
+You can use the `-goone.configPath` option at runtime to determine if you want to use a specified types.
 
 ## Example
 
-If go_one.yml exists in the directory where the command was executed
+If goone.yml exists in the directory where the command was executed
 ```
-go vet -vettool=`which go_one` -go_one.configPath="$PWD/go_one.yml" ./...
+go vet -vettool=`which goone` -goone.configPath="$PWD/goone.yml" ./...
 ```
 
 You can also detect the case where an interface is in between by writing below. example [project](https://github.com/masibw/go_todo)
-```yaml:go_one.yml
+```yaml:goone.yml
 package:
   - pkgName: 'github.com/masibw/go_todo/cmd/go_todo/infrastructure/api/handler'
     typeNames:
