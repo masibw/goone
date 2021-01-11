@@ -74,6 +74,16 @@ go vet -vettool=`which go_one` ./...
 go vet -vettool=(which go_one) ./...
 ```
 
+
+## CI
+### Github Actions
+```
+- name: install goone
+    run: go get -u github.com/masibw/goone/cmd/go_one
+- name: run goone
+    run: go vet -vettool=`which go_one` -go_one.configPath="$PWD/go_one.yml" ./...
+```
+
 # Library Support
 - sql
 - sqlx
