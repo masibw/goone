@@ -113,6 +113,3 @@ package:
 # Contribute
 You're welcome to build an Issue or create a PR and be proactive!
 
-# Caution
-This tool does not support calls to functions from other packages in a for loop
-
