@@ -1,5 +1,5 @@
 name: Test CLI
-on: pull_request
+on: push
 
 jobs:
   test:
