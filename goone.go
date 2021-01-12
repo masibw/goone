@@ -134,7 +134,7 @@ var Analyzer = &analysis.Analyzer{
 		inspect.Analyzer,
 	},
 }
-var sqlTypes []types.Type
+var sqlTypes []string
 
 func init() {
 	Analyzer.Flags.StringVar(&configPath, "configPath", "", "config file path(abs)")
@@ -142,21 +142,27 @@ func init() {
 
 func appendTypes(pass *analysis.Pass, pkg, name string) {
 
-	if typ := analysisutil.TypeOf(pass, pkg, name); typ != nil {
-		sqlTypes = append(sqlTypes, typ)
-	} else {
-		if name[0] == '*' {
-			name = name[1:]
-			pkg = "*" + pkg
-		}
-		for _, v := range pass.TypesInfo.Types {
-			if v.Type.String() == pkg+"."+name {
-				sqlTypes = append(sqlTypes, v.Type)
-				return
-			}
-		}
-	}
+	//TODO Use types instead of the name of types
+	//if typ := analysisutil.TypeOf(pass, pkg, name); typ != nil {
+	//	sqlTypes = append(sqlTypes, typ)
+	//} else {
+	//	if name[0] == '*' {
+	//		name = name[1:]
+	//		pkg = "*" + pkg
+	//	}
+	//	for _, v := range pass.TypesInfo.Types {
+	//		if v.Type.String() == pkg+"."+name {
+	//			sqlTypes = append(sqlTypes, v.Type)
+	//			return
+	//		}
+	//	}
+	//}
 
+	if name[0] == '*' {
+		name = name[1:]
+		pkg = "*" + pkg
+	}
+	sqlTypes = append(sqlTypes, pkg+"."+name)
 }
 
 func readTypeConfig(configPath string) *Types {
@@ -198,10 +204,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	reportCache = NewReportCache()
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	prepareTypes(pass, configPath)
-	if sqlTypes == nil {
-		log.Println("There is no types which call sql")
-		return nil, nil
-	}
 	forFilter := []ast.Node{
 		(*ast.ForStmt)(nil),
 		(*ast.RangeStmt)(nil),
@@ -300,12 +302,10 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 				if reportNode == nil {
 					reportNode = node
 				}
-
 				for _, typ := range sqlTypes {
 					//TODO Comparing by string is bad, but I don't have any ideas to compare another package's type
-					if tv.Type.String() == typ.String() {
+					if strings.TrimPrefix(tv.Type.String(), "vendor/") == typ || strings.TrimPrefix(tv.Type.String(), "*vendor/") == strings.TrimPrefix(typ, "*") {
 						//if types.Identical(tv.Type,typ){
-
 						reportCache.Lock()
 						if reportCache.Get(pass, reportNode.Pos()) {
 							reportCache.Unlock()
