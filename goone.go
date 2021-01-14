@@ -7,6 +7,8 @@ import (
 	"go/types"
 	"io/ioutil"
 	"log"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -165,8 +167,31 @@ func appendTypes(pass *analysis.Pass, pkg, name string) {
 	sqlTypes = append(sqlTypes, pkg+"."+name)
 }
 
-func readTypeConfig(configPath string) *Types {
-	buf, err := ioutil.ReadFile(configPath)
+func fileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	return err == nil
+}
+
+func readTypeConfig() *Types {
+	var cp string
+	// if configPath flag is not set
+	if configPath ==""{
+
+		curDir, _ := os.Getwd()
+		for !fileExists(curDir+"/goone.yml"){
+			// Search up to the root
+			if curDir == filepath.Dir(curDir) || curDir == ""{
+				// If goone.yml is not found
+				return nil
+			}
+			curDir = filepath.Dir(curDir)
+		}
+		cp = curDir+"/goone.yml"
+	}else{
+		cp = configPath
+	}
+
+	buf, err := ioutil.ReadFile(cp)
 	if err != nil {
 		return nil
 	}
@@ -179,8 +204,8 @@ func readTypeConfig(configPath string) *Types {
 	return &typesFromConfig
 }
 
-func prepareTypes(pass *analysis.Pass, configPath string) {
-	typesFromConfig := readTypeConfig(configPath)
+func prepareTypes(pass *analysis.Pass){
+	typesFromConfig := readTypeConfig()
 	if typesFromConfig != nil {
 		for _, pkg := range typesFromConfig.Package {
 			pkgName := pkg.PkgName
@@ -203,7 +228,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	funcCache = NewFuncCache()
 	reportCache = NewReportCache()
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	prepareTypes(pass, configPath)
+	prepareTypes(pass)
 	forFilter := []ast.Node{
 		(*ast.ForStmt)(nil),
 		(*ast.RangeStmt)(nil),
