@@ -92,8 +92,18 @@ go vet -vettool=(which goone) ./...
 
 You can add types to detect sql query.
 
-# Options
-You can use the `-goone.configPath` option at runtime to determine if you want to use a specified types.
+# Config
+You can add any types that you want to detect as sql query.
+You can also detect the case where an interface is in between by writing below. example [project](https://github.com/masibw/go_todo)
+```yaml:goone.yml
+package:
+  - pkgName: 'github.com/masibw/go_todo/cmd/go_todo/infrastructure/api/handler'
+    typeNames:
+      - typeName: '*todoHandler'
+```
+goone searches for `goone.yml` in directories up to the root from the file directory which analyzing currently. (not the working directory(command executed))
+
+You can use the `-goone.configPath` flag at runtime to indicate config by an absolute path.
 
 ## Example
 
@@ -102,14 +112,9 @@ If goone.yml exists in the directory where the command was executed
 go vet -vettool=`which goone` -goone.configPath="$PWD/goone.yml" ./...
 ```
 
-You can also detect the case where an interface is in between by writing below. example [project](https://github.com/masibw/go_todo)
-```yaml:goone.yml
-package:
-  - pkgName: 'github.com/masibw/go_todo/cmd/go_todo/infrastructure/api/handler'
-    typeNames:
-      - typeName: '*todoHandler'
-```
+
 
 # Contribute
 You're welcome to build an Issue or create a PR and be proactive!
+
 
