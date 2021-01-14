@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check Branch
-        if: github.ref != 'refs/heads/master'
+        if: github.ref != 'refs/heads/feature/fix_goreleaser'
         run: exit 1
       - name: Wait Tests
         id: test_result
@@ -45,4 +45,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: release --rm-dist
+          args: release --rm-dist --skip-publish --snapshot
