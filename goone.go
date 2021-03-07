@@ -116,6 +116,35 @@ func (m *FuncCache) Get(key token.Pos) bool {
 	return value
 }
 
+type PkgCache struct {
+	sync.Mutex
+	pkgMemo map[string][]*packages.Package
+}
+
+func NewPkgCache() *PkgCache {
+	return &PkgCache{
+		pkgMemo: make(map[string][]*packages.Package),
+	}
+}
+
+func (m *PkgCache) Set(name string, value []*packages.Package) {
+	m.pkgMemo[name] = value
+}
+
+func (m *PkgCache) Get(name string) []*packages.Package {
+	value := m.pkgMemo[name]
+	return value
+}
+
+func (m *PkgCache) Exists(key string) bool {
+	m.Lock()
+	_, exist := m.pkgMemo[key]
+	m.Unlock()
+	return exist
+}
+
+// pkgCache contains pkg AST
+var pkgCache *PkgCache
 // searchCache manages whether if already searched this node
 var searchCache *SearchCache
 
@@ -227,6 +256,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	searchCache = NewSearchCache()
 	funcCache = NewFuncCache()
 	reportCache = NewReportCache()
+	pkgCache = NewPkgCache()
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	prepareTypes(pass)
 	forFilter := []ast.Node{
@@ -258,12 +288,16 @@ func inspectFile(pass *analysis.Pass, parentNode ast.Node, file *ast.File, funcN
 }
 
 func loadImportPackages(pkgName string) (pkgs []*packages.Package) {
+	if pkgCache.Exists(pkgName){
+		return pkgCache.Get(pkgName)
+	}
 	config := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo}
 	var err error
 	pkgs, err = packages.Load(config, pkgName)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
+	pkgCache.Set(pkgName,pkgs)
 	return
 }
 
@@ -274,10 +308,9 @@ func anotherFileSearch(pass *analysis.Pass, funcExpr *ast.Ident, parentNode ast.
 			if anotherFileNode.Pkg() != nil {
 				importPath := convertToImportPath(pass, anotherFileNode.Pkg().Name())
 				pkgs := loadImportPackages(importPath)
-
-				for _, pkg := range pkgs {
-					for _, file := range pkg.Syntax {
-						inspectFile(pass, parentNode, file, funcExpr.Name, pkg.TypesInfo)
+				for i := range pkgs {
+					for j := range pkgs[i].Syntax {
+						inspectFile(pass, parentNode, pkgs[i].Syntax[j], funcExpr.Name, pkgs[i].TypesInfo)
 					}
 				}
 			}
@@ -327,9 +360,9 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 				if reportNode == nil {
 					reportNode = node
 				}
-				for _, typ := range sqlTypes {
+				for i := range sqlTypes {
 					//TODO Comparing by string is bad, but I don't have any ideas to compare another package's type
-					if strings.TrimPrefix(tv.Type.String(), "vendor/") == typ || strings.TrimPrefix(tv.Type.String(), "*vendor/") == strings.TrimPrefix(typ, "*") {
+					if strings.TrimPrefix(tv.Type.String(), "vendor/") == sqlTypes[i] || strings.TrimPrefix(tv.Type.String(), "*vendor/") == strings.TrimPrefix(sqlTypes[i], "*") {
 						//if types.Identical(tv.Type,typ){
 						reportCache.Lock()
 						if reportCache.Get(pass, reportNode.Pos()) {
@@ -389,19 +422,19 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 					importPath := convertToImportPath(pass, fmt.Sprintf("%s", funcExpr.X))
 
 					pkgs := loadImportPackages(importPath)
-					for _, pkg := range pkgs {
+					for i := range pkgs {
 
 						//Do not scan standard packages. Is it...ok?
-						if !strings.Contains(pkg.PkgPath, ".") {
+						if !strings.Contains(pkgs[i].PkgPath, ".") {
 							continue
 						}
-						for _, file := range pkg.Syntax {
+						for j := range pkgs[i].Syntax {
 							newParentNode := parentNode
 							if parentNode == nil {
 								newParentNode = node
 							}
 
-							inspectFile(pass, newParentNode, file, funcExpr.Sel.Name, pkg.TypesInfo)
+							inspectFile(pass, newParentNode, pkgs[i].Syntax[j], funcExpr.Sel.Name, pkgs[i].TypesInfo)
 						}
 					}
 				}
@@ -415,9 +448,9 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 }
 
 func convertToImportPath(pass *analysis.Pass, pkgName string) (importPath string) {
-	for _, v := range pass.Pkg.Imports() {
-		if strings.HasSuffix("/"+v.Path(), pkgName) {
-			importPath = v.Path()
+	for i := range pass.Pkg.Imports() {
+		if strings.HasSuffix("/"+pass.Pkg.Imports()[i].Path(), pkgName) {
+			importPath = pass.Pkg.Imports()[i].Path()
 			if strings.HasPrefix(importPath, "vendor/") {
 				importPath = strings.TrimPrefix(importPath, "vendor/")
 			}
