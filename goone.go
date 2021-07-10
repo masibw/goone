@@ -2,25 +2,15 @@ package goone
 
 import (
 	"fmt"
-	"go/ast"
-	"go/token"
-	"go/types"
-	"io/ioutil"
-	"log"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"sync"
-
-	"golang.org/x/tools/go/packages"
-
-	"gopkg.in/yaml.v2"
-
 	"github.com/gostaticanalysis/analysisutil"
+	"go/ast"
+	"go/types"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
+	"golang.org/x/tools/go/packages"
+	"log"
+	"strings"
 )
 
 type Types struct {
@@ -34,125 +24,6 @@ type Types struct {
 
 const doc = "goone finds N+1 query "
 
-type ReportCache struct {
-	sync.Mutex
-	reportMemo map[string]bool
-}
-
-func NewReportCache() *ReportCache {
-	return &ReportCache{
-		reportMemo: make(map[string]bool),
-	}
-}
-func (m *ReportCache) toKey(pass *analysis.Pass, pos token.Pos) (key string) {
-	posn := pass.Fset.Position(pos)
-	fileName, lineNum := posn.Filename, posn.Line
-	key = fileName + strconv.Itoa(lineNum)
-	return
-}
-func (m *ReportCache) Set(pass *analysis.Pass, pos token.Pos, value bool) {
-	key := m.toKey(pass, pos)
-	m.reportMemo[key] = value
-}
-
-func (m *ReportCache) Get(pass *analysis.Pass, pos token.Pos) bool {
-	key := m.toKey(pass, pos)
-	value := m.reportMemo[key]
-	return value
-}
-
-type SearchCache struct {
-	sync.Mutex
-	searchMemo map[token.Pos]bool
-}
-
-func NewSearchCache() *SearchCache {
-	return &SearchCache{
-		searchMemo: make(map[token.Pos]bool),
-	}
-}
-
-func (m *SearchCache) Set(key token.Pos, value bool) {
-	m.Lock()
-	m.searchMemo[key] = value
-	m.Unlock()
-}
-
-func (m *SearchCache) Get(key token.Pos) bool {
-	m.Lock()
-	value := m.searchMemo[key]
-	m.Unlock()
-	return value
-}
-
-type FuncCache struct {
-	sync.Mutex
-	funcMemo map[token.Pos]bool
-}
-
-func NewFuncCache() *FuncCache {
-	return &FuncCache{
-		funcMemo: make(map[token.Pos]bool),
-	}
-}
-
-func (m *FuncCache) Set(key token.Pos, value bool) {
-	m.Lock()
-	m.funcMemo[key] = value
-	m.Unlock()
-}
-
-func (m *FuncCache) Exists(key token.Pos) bool {
-	m.Lock()
-	_, exist := m.funcMemo[key]
-	m.Unlock()
-	return exist
-}
-
-func (m *FuncCache) Get(key token.Pos) bool {
-	m.Lock()
-	value := m.funcMemo[key]
-	m.Unlock()
-	return value
-}
-
-type PkgCache struct {
-	sync.Mutex
-	pkgMemo map[string][]*packages.Package
-}
-
-func NewPkgCache() *PkgCache {
-	return &PkgCache{
-		pkgMemo: make(map[string][]*packages.Package),
-	}
-}
-
-func (m *PkgCache) Set(name string, value []*packages.Package) {
-	m.pkgMemo[name] = value
-}
-
-func (m *PkgCache) Get(name string) []*packages.Package {
-	value := m.pkgMemo[name]
-	return value
-}
-
-func (m *PkgCache) Exists(key string) bool {
-	m.Lock()
-	_, exist := m.pkgMemo[key]
-	m.Unlock()
-	return exist
-}
-
-// pkgCache contains pkg AST
-var pkgCache *PkgCache
-// searchCache manages whether if already searched this node
-var searchCache *SearchCache
-
-// reportCache manages whether if this line already reported
-var reportCache *ReportCache
-
-// funcCache manages whether if this function contains queries
-var funcCache *FuncCache
 var configPath string
 
 // Analyzer is analysis files
@@ -167,93 +38,7 @@ var Analyzer = &analysis.Analyzer{
 }
 var sqlTypes []string
 
-func init() {
-	Analyzer.Flags.StringVar(&configPath, "configPath", "", "config file path(abs)")
-}
-
-func appendTypes(pass *analysis.Pass, pkg, name string) {
-
-	//TODO Use types instead of the name of types
-	//if typ := analysisutil.TypeOf(pass, pkg, name); typ != nil {
-	//	sqlTypes = append(sqlTypes, typ)
-	//} else {
-	//	if name[0] == '*' {
-	//		name = name[1:]
-	//		pkg = "*" + pkg
-	//	}
-	//	for _, v := range pass.TypesInfo.Types {
-	//		if v.Type.String() == pkg+"."+name {
-	//			sqlTypes = append(sqlTypes, v.Type)
-	//			return
-	//		}
-	//	}
-	//}
-
-	if name[0] == '*' {
-		name = name[1:]
-		pkg = "*" + pkg
-	}
-	sqlTypes = append(sqlTypes, pkg+"."+name)
-}
-
-func fileExists(filename string) bool {
-	_, err := os.Stat(filename)
-	return err == nil
-}
-
-func readTypeConfig() *Types {
-	var cp string
-	// if configPath flag is not set
-	if configPath ==""{
-
-		curDir, _ := os.Getwd()
-		for !fileExists(curDir+"/goone.yml"){
-			// Search up to the root
-			if curDir == filepath.Dir(curDir) || curDir == ""{
-				// If goone.yml is not found
-				return nil
-			}
-			curDir = filepath.Dir(curDir)
-		}
-		cp = curDir+"/goone.yml"
-	}else{
-		cp = configPath
-	}
-
-	buf, err := ioutil.ReadFile(cp)
-	if err != nil {
-		return nil
-	}
-	typesFromConfig := Types{}
-	err = yaml.Unmarshal([]byte(buf), &typesFromConfig)
-	if err != nil {
-		log.Fatalf("yml parse error:%v", err)
-	}
-
-	return &typesFromConfig
-}
-
-func prepareTypes(pass *analysis.Pass){
-	typesFromConfig := readTypeConfig()
-	if typesFromConfig != nil {
-		for _, pkg := range typesFromConfig.Package {
-			pkgName := pkg.PkgName
-			for _, typeName := range pkg.TypeNames {
-				appendTypes(pass, pkgName, typeName.TypeName)
-			}
-		}
-	}
-
-	appendTypes(pass, "database/sql", "*DB")
-	appendTypes(pass, "gorm.io/gorm", "*DB")
-	appendTypes(pass, "gopkg.in/gorp.v1", "*DbMap")
-	appendTypes(pass, "gopkg.in/gorp.v2", "*DbMap")
-	appendTypes(pass, "github.com/go-gorp/gorp/v3", "*DbMap")
-	appendTypes(pass, "github.com/jmoiron/sqlx", "*DB")
-}
-
 func run(pass *analysis.Pass) (interface{}, error) {
-	searchCache = NewSearchCache()
 	funcCache = NewFuncCache()
 	reportCache = NewReportCache()
 	pkgCache = NewPkgCache()
@@ -267,7 +52,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	inspect.Preorder(forFilter, func(n ast.Node) {
 		switch n := n.(type) {
 		case *ast.ForStmt, *ast.RangeStmt:
-			findQuery(pass, n, nil, nil)
+				findQuery(pass, n, nil, nil)
 		}
 	})
 	return nil, nil
@@ -276,28 +61,24 @@ func run(pass *analysis.Pass) (interface{}, error) {
 func inspectFile(pass *analysis.Pass, parentNode ast.Node, file *ast.File, funcName string, pkgTypes *types.Info) {
 	inspect := inspector.New([]*ast.File{file})
 	types := []ast.Node{new(ast.FuncDecl)}
-
 	inspect.Preorder(types, func(n ast.Node) {
 		switch n := n.(type) {
 		case *ast.FuncDecl:
 			if n.Name.Name == funcName {
-				findQuery(pass, n, parentNode, pkgTypes)
+					findQuery(pass, n, parentNode, pkgTypes)
 			}
 		}
 	})
 }
 
 func loadImportPackages(pkgName string) (pkgs []*packages.Package) {
-	if pkgCache.Exists(pkgName){
-		return pkgCache.Get(pkgName)
-	}
 	config := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo}
 	var err error
 	pkgs, err = packages.Load(config, pkgName)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
-	pkgCache.Set(pkgName,pkgs)
+	pkgCache.Set(pkgName,true)
 	return
 }
 
@@ -307,10 +88,21 @@ func anotherFileSearch(pass *analysis.Pass, funcExpr *ast.Ident, parentNode ast.
 		if file == nil {
 			if anotherFileNode.Pkg() != nil {
 				importPath := convertToImportPath(pass, anotherFileNode.Pkg().Name())
+
+				if pkgCache.Exists(importPath){
+					// Check whether if already checked function
+					if containsQuery, ok := funcCache.Get(funcExpr.Pos()); ok{
+						if containsQuery {
+							pass.Reportf(parentNode.Pos(), "this query is called in a loop")
+						}
+						return false
+					}
+				}
+				// If the package has not been loaded yet, load it.
 				pkgs := loadImportPackages(importPath)
 				for i := range pkgs {
 					for j := range pkgs[i].Syntax {
-						inspectFile(pass, parentNode, pkgs[i].Syntax[j], funcExpr.Name, pkgs[i].TypesInfo)
+							inspectFile(pass, parentNode, pkgs[i].Syntax[j], funcExpr.Name, pkgs[i].TypesInfo)
 					}
 				}
 			}
@@ -324,8 +116,7 @@ func anotherFileSearch(pass *analysis.Pass, funcExpr *ast.Ident, parentNode ast.
 
 func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *types.Info) { //nolint:gocognit
 
-	if funcCache.Exists(rootNode.Pos()) {
-		if funcCache.Get(rootNode.Pos()) {
+	if containsQuery, ok := funcCache.Get(rootNode.Pos()); ok && containsQuery{
 
 			reportCache.Lock()
 			if reportCache.Get(pass, parentNode.Pos()) {
@@ -337,7 +128,6 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 
 			pass.Reportf(parentNode.Pos(), "this query is called in a loop")
 
-		}
 		return
 	}
 
@@ -390,16 +180,14 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 				}
 				switch decl := obj.Decl.(type) {
 				case *ast.FuncDecl:
-					if !searchCache.Get(decl.Pos()) {
-						searchCache.Set(decl.Pos(), true)
+					if _, ok := funcCache.Get(decl.Pos()); !ok {
 						newParentNode := parentNode
 						if parentNode == nil {
 							newParentNode = node
 						}
-
-						findQuery(pass, decl, newParentNode, nil)
+							findQuery(pass, decl, newParentNode, nil)
 					} else {
-						if funcCache.Get(decl.Pos()) {
+						if containsQuery,_ := funcCache.Get(decl.Pos()); containsQuery{
 
 							reportCache.Lock()
 							if reportCache.Get(pass, node.Pos()) {
@@ -421,6 +209,15 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 					//TODO get packageName without fmt.Sprinf
 					importPath := convertToImportPath(pass, fmt.Sprintf("%s", funcExpr.X))
 
+					if pkgCache.Exists(importPath){
+						if containsQuery, ok := funcCache.Get(funcExpr.Pos()); ok{
+							if containsQuery {
+								pass.Reportf(parentNode.Pos(), "this query is called in a loop")
+							}
+							return false
+						}
+					}
+					// If the package has not been loaded yet, load it
 					pkgs := loadImportPackages(importPath)
 					for i := range pkgs {
 
@@ -433,7 +230,6 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 							if parentNode == nil {
 								newParentNode = node
 							}
-
 							inspectFile(pass, newParentNode, pkgs[i].Syntax[j], funcExpr.Sel.Name, pkgs[i].TypesInfo)
 						}
 					}
