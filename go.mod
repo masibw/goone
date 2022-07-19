@@ -1,6 +1,6 @@
 module github.com/masibw/goone
 
-go 1.14
+go 1.16
 
 require (
 	github.com/gostaticanalysis/analysisutil v0.6.1
