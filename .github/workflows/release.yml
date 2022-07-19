@@ -31,6 +31,8 @@ jobs:
           exit 1
       - name: Checkout Sources
         uses: actions/checkout@v3
+        with:
+          persist-credentials: false
       - name: Bump-up Semantic Version
         uses: kyoh86/git-vertag-action@v1.1
         with:
