@@ -417,10 +417,7 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 func convertToImportPath(pass *analysis.Pass, pkgName string) (importPath string) {
 	for _, v := range pass.Pkg.Imports() {
 		if strings.HasSuffix("/"+v.Path(), pkgName) {
-			importPath = v.Path()
-			if strings.HasPrefix(importPath, "vendor/") {
-				importPath = strings.TrimPrefix(importPath, "vendor/")
-			}
+			importPath = strings.TrimPrefix(v.Path(), "vendor/")
 			return
 		}
 	}
