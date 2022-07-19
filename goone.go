@@ -175,19 +175,19 @@ func fileExists(filename string) bool {
 func readTypeConfig() *Types {
 	var cp string
 	// if configPath flag is not set
-	if configPath ==""{
+	if configPath == "" {
 
 		curDir, _ := os.Getwd()
-		for !fileExists(curDir+"/goone.yml"){
+		for !fileExists(curDir + "/goone.yml") {
 			// Search up to the root
-			if curDir == filepath.Dir(curDir) || curDir == ""{
+			if curDir == filepath.Dir(curDir) || curDir == "" {
 				// If goone.yml is not found
 				return nil
 			}
 			curDir = filepath.Dir(curDir)
 		}
-		cp = curDir+"/goone.yml"
-	}else{
+		cp = curDir + "/goone.yml"
+	} else {
 		cp = configPath
 	}
 
@@ -204,7 +204,7 @@ func readTypeConfig() *Types {
 	return &typesFromConfig
 }
 
-func prepareTypes(pass *analysis.Pass){
+func prepareTypes(pass *analysis.Pass) {
 	typesFromConfig := readTypeConfig()
 	if typesFromConfig != nil {
 		for _, pkg := range typesFromConfig.Package {
@@ -417,10 +417,7 @@ func findQuery(pass *analysis.Pass, rootNode, parentNode ast.Node, pkgTypes *typ
 func convertToImportPath(pass *analysis.Pass, pkgName string) (importPath string) {
 	for _, v := range pass.Pkg.Imports() {
 		if strings.HasSuffix("/"+v.Path(), pkgName) {
-			importPath = v.Path()
-			if strings.HasPrefix(importPath, "vendor/") {
-				importPath = strings.TrimPrefix(importPath, "vendor/")
-			}
+			importPath = strings.TrimPrefix(v.Path(), "vendor/")
 			return
 		}
 	}
